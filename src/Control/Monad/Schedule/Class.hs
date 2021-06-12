@@ -180,6 +180,67 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
 --     & schedule
 --     & _
 
+data Action m where
+  Atom :: m (Action m) -> Action m
+  -- Fork :: [Action m] -> Action m
+  ExitWith :: a -> Action m
+  -- Stop :: Action m
+  -- Async :: (Var a -> Action m) -> (Var a -> Action m) -> Action m
+  Await :: Var m a -> (a -> Action m) -> Action m
+  -- NewVar :: (Var a -> Action m) -> Action m
+  -- TakeVar :: Var a -> (a -> Action m) -> Action m
+  -- PutVar :: Var a -> a -> Action m -> Action m
+  Async' :: ContT (Action m) m a -> (Var m a -> Action m) -> Action m
+
+data Var m a = Var (ContT (Action m) m a)
+
+{-
+fork :: Applicative m => [ContT (Action m) m a] -> ContT (Action m) m ()
+fork processes = ContT $ \next -> Fork <$> sequenceA (next () : [ process $ pure . ExitWith | ContT process <- processes ])
+
+newVar :: Applicative m => ContT (Action m) m (Var a)
+newVar = ContT $ \next -> pure $ NewVar $ Atom . next
+
+takeVar :: Applicative m => Var a -> ContT (Action m) m a
+takeVar var = ContT $ \next -> pure $ TakeVar var $ Atom . next
+
+putVar :: Applicative m => Var a -> a -> ContT (Action m) m ()
+putVar var a = ContT $ \next -> pure $ PutVar var a $ Atom $ next ()
+
+async' :: Applicative m => ContT (Action m) m a -> ContT (Action m) m (Var a)
+async' action = do
+  var <- newVar
+  fork [action >>= putVar var]
+  return var
+-}
+
+async'' :: Applicative m => ContT (Action m) m a -> ContT (Action m) m (Var m a)
+async'' action = ContT $ \next -> pure $ Async' action $ Atom . next
+
+await :: Applicative m => Var m a -> ContT (Action m) m a
+await var = ContT $ \next -> pure $ Await var $ Atom . next
+
+runAsyncAwait :: (Monad m, MonadSchedule m) => ContT (Action m) m a -> m a
+runAsyncAwait (ContT handler) = interpret =<< handler (return . ExitWith)
+  where
+    interpret :: (Monad m, MonadSchedule m) => Action m -> m a
+    interpret (Atom maction') = interpret =<< maction'
+    interpret (ExitWith a) = return $ unsafeCoerce a -- Get rid of this with GADTs & existentials
+    interpret (Await (Var finish) cont) = (interpret . cont) =<< runAsyncAwait finish
+    interpret (Async' thread cont) = do
+      -- result <- race _ _ -- FIXME This does only the first step
+      interpret $ cont $ Var thread -- This doesn't use schedule at all
+
+{-
+async'' :: Applicative m => ContT (Action m) m a -> ContT (Action m) m (Var a)
+async'' thread = ContT $ \next -> do
+  let ContT thing = flip putVar <$> thread
+  _
+  return $ Async _ $ Atom . next
+-}
+
+-- TODO MaybeT? ExceptT??
+
 -- | Runs two values in a 'MonadSchedule' concurrently
 --   and returns the first one that yields a value
 --   and a continuation for the other value.
