@@ -1,0 +1,24 @@
+cabal-version:      2.4
+name:               monad-schedule
+version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+author:             Manuel Bärenz
+maintainer:         programming@manuelbaerenz.de
+extra-source-files: CHANGELOG.md
+
+library
+  exposed-modules:
+      Control.Monad.Schedule.Class
+      Control.Monad.Schedule.RoundRobin
+      Control.Monad.Schedule.Sequence
+      Control.Monad.Schedule.Trans
+      Control.Monad.Schedule.OSThreadPool
+  build-depends:
+      base >= 4.10.0
+    , stm          >= 2.5
+    , transformers >= 0.5
+    , free >= 5.1
+    , time-domain >= 0.1
+  hs-source-dirs:   src
+  default-language: Haskell2010
