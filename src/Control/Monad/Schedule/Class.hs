@@ -40,6 +40,9 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 
+-- hlist
+-- import Data.HList
+
 {- | 'Monad's in which actions can be scheduled concurrently.
 
 @'schedule' actions@ is expected to run @actions@ concurrently,
@@ -212,3 +215,217 @@ async aSched bSched = do
     Right (aCont, b) -> do
       a <- aCont
       return (a, b)
+
+data HMList m (types :: [Type]) where
+  Nil :: HMList m '[]
+  (:.) :: (CollectEithersToList ts, DistributeListToEithers ts) => m t -> HMList m ts -> HMList m (t ': ts)
+
+{-
+type family ListToEithers (types :: [Type]) :: Type where
+  ListToEithers '[] = Void
+  ListToEithers (t ': ts) = Either t (ListToEithers ts)
+
+class DistributeListToEithers (types :: [Type]) where
+  distribute :: List types -> [ListToEithers types]
+
+instance DistributeListToEithers '[] where
+  distribute Nil = []
+
+instance DistributeListToEithers ts => DistributeListToEithers (t ': ts) where
+  distribute (t :. ts) = Left t : (Right <$> distribute ts)
+
+class CollectEithersToList (types :: [Type]) where
+  collect :: [ListToEithers types] -> Maybe (List types)
+
+instance CollectEithersToList '[] where
+  collect [] = Just Nil
+  collect _ = Nothing
+
+instance CollectEithersToList ts => CollectEithersToList (t ': ts) where
+  collect ts' = do
+    ([Left t], tsRight) <- pure $ partitionEithers ts'
+    ts <- sequence $ rightToMaybe <$> tsRight
+    tsCollected <- collect ts
+    return $ t :. tsCollected
+
+asyncList :: (Monad m, MonadSchedule m) => NonEmpty (m a) -> m (NonEmpty a)
+asyncList mas = do
+  (as, mas') <- schedule mas
+  case as' of
+    -- All actions returned immediately
+    [] -> return as
+    -- All but one actions returned...
+    [ma] -> do
+      -- ...so just await the remaining action
+      a' <- ma
+      return $ as <> pure a'
+    -- Several actions didn't return yet, schedule them again repeatedly
+    _ -> do
+      as' <- asyncList mas
+      return $ as <> as'
+
+-- TODO: PR to hlist
+type family Map m ts where
+  Map m '[] = '[]
+  Map m (t ': ts) = m t ': Map m ts
+
+asyncHList :: (Monad m, MonadSchedule m) => List (Map m ts) -> m (List ts)
+asyncHList Nil = return Nil
+asyncHList ts@(_ :. _) = _ <$> asyncList (fromList $ distribute ts)
+-- asyncHList ts@(_ :. _) = collect . fromJust . toList <$> asyncList (fromList $ distribute ts)
+-}
+
+type family ListToEithers (types :: [Type]) :: Type where
+  ListToEithers '[] = Void
+  ListToEithers (t ': ts) = Either t (ListToEithers ts)
+
+class DistributeListToEithers (types :: [Type]) where
+  distribute :: Functor m => HMList m types -> [m (ListToEithers types)]
+
+instance DistributeListToEithers '[] where
+  distribute Nil = []
+
+instance DistributeListToEithers ts => DistributeListToEithers (t ': ts) where
+  distribute (t :. ts) = (Left <$> t) : (fmap Right <$> distribute ts)
+
+class CollectEithersToList (types :: [Type]) where
+  collect :: [ListToEithers types] -> Maybe (HMList Identity types)
+
+instance CollectEithersToList '[] where
+  collect [] = Just Nil
+  collect _ = Nothing
+
+instance CollectEithersToList ts => CollectEithersToList (t ': ts) where
+  collect ts' = do
+    ([t], ts) <- pure $ partitionEithers ts'
+    tsCollected <- collect ts
+    return $ Identity t :. tsCollected
+
+-- TODO: I only need selective here
+asyncList :: (Monad m, MonadSchedule m) => NonEmpty (m a) -> m (NonEmpty a)
+asyncList mas = do
+  (as, mas') <- schedule mas
+  case mas' of
+    -- All actions returned immediately
+    [] -> return as
+    -- All but one actions returned...
+    [ma] -> do
+      -- ...so just await the remaining action
+      a' <- ma
+      return $ as <> pure a'
+    -- Several actions didn't return yet, schedule them again repeatedly
+    _ -> do
+      as' <- asyncList mas
+      return $ as <> as'
+
+-- TODO: PR to hlist
+type family Map m ts where
+  Map m '[] = '[]
+  Map m (t ': ts) = m t ': Map m ts
+
+asyncHList :: forall m ts . (Monad m, MonadSchedule m, CollectEithersToList ts, DistributeListToEithers ts) => HMList m ts -> m (HMList Identity ts)
+asyncHList Nil = pure Nil
+-- asyncHList ts@(_ :. _) = _ <$> asyncList (fromList $ distribute ts)
+asyncHList ts@(_ :. _) = fromJust . collect @ts . toList <$> asyncList (fromList $ distribute ts)
+-- asyncHList ts@(_ :. _) = collect . fromJust . toList <$> asyncList (fromList $ distribute ts)
+
+data Scheduling m a where
+  Pure :: a -> Scheduling m a
+  -- Ap :: m (a -> b) -> Scheduling m a -> Scheduling m b
+  Ap :: Scheduling m (a -> b) -> m a -> Scheduling m b
+
+instance Functor m => Functor (Scheduling m) where
+  fmap f (Pure a) = Pure $ f a
+  -- fmap f (Ap mf ma) = Ap (fmap (f .) mf) ma
+  fmap f (Ap mf ma) = Ap (fmap (f .) mf) ma
+
+instance Functor m => Applicative (Scheduling m) where
+  pure = Pure
+  Pure f <*> y = f <$> y
+  -- Ap mf ma <*> y = Ap (uncurry <$> mf) $ ( , ) <$> ma <*> y
+  Ap mf ma <*> y = Ap (fmap flip mf <*> y) ma
+
+{-
+runSchedulingA :: (Applicative m, MonadSchedule m) => Scheduling m a -> m a
+runSchedulingA (Pure a) = pure a
+runSchedulingA _ = _
+-}
+
+{-
+type family Fun (ts :: [Type]) a :: Type where
+  Fun '[] a = a
+  Fun (t ': ts) a = t -> Fun ts a
+-}
+
+data Operad (ts :: [Type]) a where
+  ONil :: a -> Operad '[] a
+  OCons :: (t -> Operad ts a) -> Operad (t ': ts) a
+
+data AppList m a where
+  AppList
+    :: (DistributeListToEithers ts, CollectEithersToList ts)
+    => Operad ts a -> HMList m ts -> AppList m a
+
+{-
+schedulingToAppList :: Scheduling m a -> AppList m a
+schedulingToAppList (Pure a) = AppList (FunNil a) Nil
+schedulingToAppList (Ap smf ma) =
+  let AppList f mas = schedulingToAppList smf
+  in AppList _ $ ma :. mas
+-}
+
+{-
+instance Functor (AppList m) where
+  fmap f (AppList a Nil) = AppList (f a) Nil
+  fmap f (AppList g (ma :. mas)) = _
+
+instance Applicative (AppList m) where
+  pure a = AppList a Nil
+  _ <*> _ = _
+    where
+      liftA2 :: (a -> b -> c) -> AppList m a -> AppList m b -> AppList m c
+      liftA2 f (AppList a Nil) (AppList b Nil) = AppList (f a b) Nil
+      liftA2 f (AppList a Nil) (AppList h (mb :. mbs))
+        = let AppList h' mbs' = liftA2 f (AppList a Nil) _
+        in AppList _ (mb :. mbs')
+      -- liftA2 f (AppList g (a :. as)) (AppList h bs) = AppList _ _
+-}
+
+instance Functor (Operad ts) where
+  fmap f (ONil a) = ONil $ f a
+  fmap f (OCons g) = OCons $ fmap f . g
+
+instance Functor (AppList m) where
+  -- fmap f (AppList (FunNil a) Nil) = AppList (FunNil $ f a) Nil
+  -- fmap f (AppList (FunCons g) (ma :. mas)) = AppList
+  fmap f (AppList fun mas) = AppList (fmap f fun) mas
+
+type family Append ts us where
+  Append '[] us = us
+  Append (t ': ts) us = t ': Append ts us
+
+funAppend :: (a -> b -> c) -> Operad ts a -> Operad us b -> Operad (Append ts us) c
+funAppend f (ONil a) fun = f a <$> fun
+funAppend f (OCons g) fun = OCons $ \t -> funAppend f (g t) fun
+
+hmListAppend :: HMList m ts -> HMList m us -> HMList m (Append ts us)
+hmListAppend Nil mus = mus
+hmListAppend (mt :. mts) mus = mt :. hmListAppend mts mus
+
+instance Applicative (AppList m) where
+  pure a = AppList (ONil a) Nil
+  (<*>) = liftA2 ($)
+    where
+      liftA2 :: (a -> b -> c) -> AppList m a -> AppList m b -> AppList m c
+      liftA2 f (AppList g mas) (AppList h mbs) = AppList (funAppend f g h) $ hmListAppend mas mbs
+
+identityAppList :: AppList Identity a -> a
+identityAppList (AppList (ONil a) Nil) = a
+identityAppList (AppList (OCons f) (Identity a :. as)) = identityAppList $ AppList (f a) as
+
+-- Note I only need the Applicative for pure! Add it to MonadSchedule and it becomes a replacement for Applicative!
+runAppList :: (Monad m, MonadSchedule m) => AppList m a -> m a
+runAppList (AppList (ONil a) Nil) = pure a
+runAppList (AppList operad ts) = do
+  tsScheduled <- asyncHList ts
+  return $ identityAppList $ AppList operad tsScheduled
