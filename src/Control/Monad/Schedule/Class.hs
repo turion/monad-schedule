@@ -53,7 +53,7 @@ and awaits the return of the corresponding action.
 A lawful instance is considered to satisfy these conditions:
 
   * The set of returned values is invariant under scheduling.
-    In other words, @sequence@ will result in the same set oq values as @scheduleAndFinish@.
+    In other words, @sequence@ will result in the same set of values as @scheduleAndFinish@.
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
 class MonadSchedule m where
