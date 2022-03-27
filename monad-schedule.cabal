@@ -15,8 +15,8 @@ library
       Control.Monad.Schedule.Trans
       Control.Monad.Schedule.OSThreadPool
   build-depends:
-      base >= 4.10.0
-    , stm          >= 2.5
+      base >= 4.13.0 && <= 4.17
+    , stm >= 2.5
     , transformers >= 0.5
     , free >= 5.1
     , time-domain >= 0.1
