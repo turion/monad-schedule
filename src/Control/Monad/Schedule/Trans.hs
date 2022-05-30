@@ -17,6 +17,7 @@ import qualified Control.Concurrent as C
 import Control.Category ((>>>))
 import Control.Monad (join)
 import Data.Functor.Classes
+import Data.Functor.Identity
 import Data.List.NonEmpty as N
 
 -- transformers
@@ -60,6 +61,8 @@ Delays can occur between any two side effects, with lengths specified by a 'diff
 These delays don't have any semantics, it can be given to them with 'runScheduleT'.
 -}
 type ScheduleT diff = FreeT (Wait diff)
+
+type Schedule diff = ScheduleT diff Identity
 
 -- | The side effect that waits for a specified amount.
 wait :: Monad m => diff -> ScheduleT diff m ()

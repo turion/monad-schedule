@@ -17,28 +17,30 @@ module Control.Monad.Schedule.Class where
 -- base
 import Control.Arrow
 import Control.Concurrent
+import Control.Monad (void)
+import Control.Monad.IO.Class
 import Data.Either
 import Data.Foldable (fold, forM_)
-import Data.List.NonEmpty hiding (length)
 import Data.Function
+import Data.Functor.Identity
 import Data.Kind (Type)
+import Data.List.NonEmpty hiding (length)
+import Data.Maybe (fromJust)
 import Data.Void
+import Prelude hiding (map, zip)
+import Unsafe.Coerce (unsafeCoerce)
+
+import qualified Data.List.NonEmpty as NonEmpty
 
 -- transformers
 import Control.Monad.Trans.Accum
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Writer
-import Control.Monad.Trans.Reader
-import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad.Trans.Cont
-import Control.Monad (void)
-import Unsafe.Coerce (unsafeCoerce)
-import Data.Functor.Identity
-import Data.Maybe (fromJust)
-import Prelude hiding (map, zip)
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Identity
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Writer
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -88,6 +90,10 @@ sequenceScheduling
     strength :: Functor m => (a, m b) -> m (a, b)
     strength (a, mb) = (a, ) <$> mb
 
+-- | When there are no effects, return all values immediately
+instance MonadSchedule Identity where
+  schedule as = ( , []) <$> sequence as
+
 {- |
 Fork all actions concurrently in separate threads and wait for the first one to complete.
 
@@ -118,6 +124,14 @@ instance MonadSchedule IO where
 
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
+
+-- | Pass through the scheduling functionality of the underlying monad
+instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
+  schedule
+    =   fmap runIdentityT
+    >>> schedule
+    >>> fmap (fmap (fmap IdentityT))
+    >>> IdentityT
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.

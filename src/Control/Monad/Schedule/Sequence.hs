@@ -5,6 +5,7 @@ module Control.Monad.Schedule.Sequence where
 -- base
 import Control.Arrow ((>>>))
 import Control.Monad.IO.Class
+import Data.Functor.Identity
 import qualified Data.List.NonEmpty as NonEmpty
 
 -- transformers
@@ -24,3 +25,5 @@ instance MonadTrans SequenceT where
 --   Essentially, this is 'sequenceA'.
 instance Monad m => MonadSchedule (SequenceT m) where
   schedule = sequenceA >>> fmap (, [])
+
+type Sequence = SequenceT Identity
