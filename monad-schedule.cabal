@@ -20,10 +20,11 @@ extra-source-files: CHANGELOG.md
 library
   exposed-modules:
       Control.Monad.Schedule.Class
+      Control.Monad.Schedule.OSThreadPool
       Control.Monad.Schedule.RoundRobin
       Control.Monad.Schedule.Sequence
       Control.Monad.Schedule.Trans
-      Control.Monad.Schedule.OSThreadPool
+      Control.Monad.Schedule.Yield
   build-depends:
       base >= 4.13.0 && <= 4.17
     , stm >= 2.5
