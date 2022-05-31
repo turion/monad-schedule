@@ -18,7 +18,8 @@ import Control.Category ((>>>))
 import Control.Monad (join)
 import Data.Functor.Classes
 import Data.Functor.Identity
-import Data.List.NonEmpty as N
+import Data.List.NonEmpty as N hiding (partition)
+import Data.List (partition)
 
 -- transformers
 import Control.Monad.IO.Class
@@ -95,6 +96,9 @@ execScheduleT action = do
 instance Ord diff => MonadSchedule (Wait diff) where
   schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in ((, waits') . pure) <$> smallestWait
 
+isZero :: (Eq diff, TimeDifference diff) => diff -> Bool
+isZero diff = diff `difference` diff == diff
+
 -- | Run each action one step until it is discovered which action(s) are pure, or yield next.
 --   If there is a pure action, it is returned,
 --   otherwise all actions are shifted to the time when the earliest action yields.
@@ -162,4 +166,6 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
         -- Wait the remaining time and start scheduling again.
         Right (Wait diff (cont, waits)) -> do
           wait diff
-          schedule (cont :| delayed ++ ((FreeT . return . Free) <$> waits))
+          let (zeroWaits, nonZeroWaits) = partition (isZero . getDiff) waits
+              zeroWaitsUnwrapped = awaited <$> zeroWaits
+          schedule (cont :| delayed ++ zeroWaitsUnwrapped ++ (FreeT . return . Free <$> nonZeroWaits))
