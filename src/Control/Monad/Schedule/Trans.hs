@@ -51,6 +51,8 @@ instance Eq diff => Eq1 (Wait diff) where
   liftEq eq (Wait diff1 a) (Wait diff2 b) = diff1 == diff2 && eq a b
 
 -- | Compare by the time difference, regardless of the value.
+--
+--   Note that this would not give a lawful 'Ord' instance since we do not compare the @a@.
 compareWait :: Ord diff => Wait diff a -> Wait diff a -> Ordering
 compareWait = comparing getDiff
 
@@ -107,6 +109,8 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
     (frees, delayed) <- lift $ schedule $ runFreeT <$> actions
     shiftList (sortBy compareFreeFWait frees) $ FreeT <$> delayed
     where
+      -- We disregard the inner values @a@ and @b@,
+      -- thus this is not an 'Ord' instance.
       compareFreeFWait
         :: Ord diff
         => FreeF (Wait diff) a b
