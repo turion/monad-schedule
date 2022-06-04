@@ -154,6 +154,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
         -> [ScheduleT diff m a]
         -- ^ Delayed
         -> ScheduleT diff m (NonEmpty a, [ScheduleT diff m a])
+      -- FIXME Don't I need to shift delayed as well?
       shiftList actions delayed = case shiftListOnce actions of
         -- Some actions returned. Wrap up the remaining ones.
         Left (as, waits) -> return (as, delayed ++ ((FreeT . return . Free) <$> waits))
