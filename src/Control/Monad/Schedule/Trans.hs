@@ -101,6 +101,44 @@ instance Ord diff => MonadSchedule (Wait diff) where
 isZero :: (Eq diff, TimeDifference diff) => diff -> Bool
 isZero diff = diff `difference` diff == diff
 
+{-
+mF1 mF2  mP
+mF1 mF3   mF1 mP
+mF2  mP
+mF3   mF10          mP
+mF4    mP
+
+mF1mF2mP
+   mF3mF1mP
+    F1mP
+    F2mF10mP
+    F3mP
+
+mF1mF2mP
+   mF3mF1mP
+    F1mP
+    F2mF10mP
+    F3mP
+
+-}
+
+-- f :: NonEmpty (m Free) -> [Free]
+--   -> m (
+  -- [Pure] -- Returned
+  -- , [m Free] -- Still running
+  -- , [Free]) -- Returned non-minimal wait time
+-- f toRun waiting = do
+  -- (returned, running) <- schedule toRun
+  -- case splitPure returned of
+    -- ([], frees) -> do
+        -- let smallestWaitTime = min $ frees ++ waiting
+        --     waiting' = shiftWaitTime smallestWaitTime $ frees ++ waiting
+        -- wait smallestWaitTime
+        -- return ([], shiftWaitTime smallestWaitTime <$> running, frees ++ waiting)
+    -- (pures, frees) -- The same
+
+-- g: Run f until it returns pures
+
 -- | Run each action one step until it is discovered which action(s) are pure, or yield next.
 --   If there is a pure action, it is returned,
 --   otherwise all actions are shifted to the time when the earliest action yields.
