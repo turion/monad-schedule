@@ -34,4 +34,23 @@ or a fixed number of OS threads, see `Control.Monad.Schedule.OSThreadPool`.
 The `MonadSchedule` interface is very general.
 This allows a lot of monads to be instances of `MonadSchedule`.
 For example, most transformers such as `ReaderT`, `WriterT`, `ExceptT` can be added on top of an existing `MonadSchedule` instance.
-(Except `StateT`, which is inherently single-threaded, but see `AccumT` as an alternative in many cases.)
+
+#### Why not `StateT`?
+
+State is inherently single-threaded,
+and thus there is no good way to schedule several actions that manipulate it.
+
+Imagine two threads running, both wanting to write to that single state.
+It's not obvious which one should succeed.
+The last one?
+Should the first one be restarted, or its state be discarded?
+
+You might want to merge the state modifications of the two threads,
+and this can often be done by using `AccumT`:
+The two threads are launched with the same initial state,
+return a modification in form of a `Monoid`,
+which is then appended to the global state instead of replacing it.
+
+But caution: Some common `AccumT` use cases have the typical concurrency pitfalls.
+For example, if you use the internal state as a unique key resource, or a random generator seed,
+uniqueness will not be guaranteed across threads.
