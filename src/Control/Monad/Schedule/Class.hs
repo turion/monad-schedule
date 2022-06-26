@@ -40,7 +40,9 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Writer
+import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
+import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
+import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -135,11 +137,33 @@ instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
-instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (WriterT w m) where
-  schedule = fmap runWriterT
+instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.WriterT w m) where
+  schedule = fmap LazyWriter.runWriterT
     >>> schedule
-    >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap WriterT))
-    >>> WriterT
+    >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap LazyWriter.WriterT))
+    >>> LazyWriter.WriterT
+    where
+      assoc :: ((a, w), c) -> ((a, c), w)
+      assoc ((a, w), c) = ((a, c), w)
+
+-- | Write in the order of scheduling:
+--   The first actions to return write first.
+instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.WriterT w m) where
+  schedule = fmap StrictWriter.runWriterT
+    >>> schedule
+    >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap StrictWriter.WriterT))
+    >>> StrictWriter.WriterT
+    where
+      assoc :: ((a, w), c) -> ((a, c), w)
+      assoc ((a, w), c) = ((a, c), w)
+
+-- | Write in the order of scheduling:
+--   The first actions to return write first.
+instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (CPSWriter.WriterT w m) where
+  schedule = fmap CPSWriter.runWriterT
+    >>> schedule
+    >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap CPSWriter.writerT))
+    >>> CPSWriter.writerT
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
