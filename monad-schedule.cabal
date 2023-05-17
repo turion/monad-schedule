@@ -28,6 +28,8 @@ common deps
     , stm           ^>=2.5
     , time-domain   ^>=0.1
     , transformers  ^>=0.6
+    , mmorph ^>= 1.2
+    , vector-sized-transformer ^>= 0.1
 
 library
   import:           deps

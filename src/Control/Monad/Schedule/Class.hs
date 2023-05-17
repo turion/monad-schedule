@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Control.Monad.Schedule.Class where
 
 
@@ -24,13 +25,13 @@ import Data.Foldable (fold, forM_)
 import Data.Function
 import Data.Functor.Identity
 import Data.Kind (Type)
-import Data.List.NonEmpty hiding (length)
+import Data.List.NonEmpty hiding (uncons, length)
 import Data.Maybe (fromJust)
 import Data.Void
 import Prelude hiding (map, zip)
 import Unsafe.Coerce (unsafeCoerce)
 
-import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.List.NonEmpty as NonEmpty hiding (uncons)
 
 -- transformers
 import Control.Monad.Trans.Accum
@@ -43,6 +44,11 @@ import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
 import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
+import Data.Vector.Sized.Trans (mapM, VectorT (..))
+import qualified Data.Vector.Sized.Trans.Some as Some
+import Data.Vector.Sized.Trans.Some (SomeVectorT)
+import GHC.TypeNats
+import Control.Monad.Morph
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -60,29 +66,28 @@ A lawful instance is considered to satisfy these conditions:
     In other words, @sequence@ will result in the same set of values as @scheduleAndFinish@.
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
-class MonadSchedule m where
+-- FIXME rather constrained class method?
+class Monad m => MonadSchedule m where
   -- | Run the actions concurrently,
   --   and return the result of the first finishers,
   --   together with completions for the unfinished actions.
   schedule :: NonEmpty (m a) -> m (NonEmpty a, [m a])
 
+  schedule' :: KnownNat n => VectorT n Identity (m a) -> VectorT n m a
+
 -- | Keeps 'schedule'ing actions until all are finished.
 --   Returns the same set of values as 'sequence',
 --   but utilises concurrency and may thus change the order of the values.
-scheduleAndFinish :: (Monad m, MonadSchedule m) => NonEmpty (m a) -> m (NonEmpty a)
-scheduleAndFinish actions = do
-  (finishedFirst, running) <- schedule actions
-  case running of
-    [] -> return finishedFirst
-    (a : as) -> do
-      finishedLater <- scheduleAndFinish $ a :| as
-      return $ finishedFirst <> finishedLater
+scheduleAndFinish :: (Monad m, MonadSchedule m, KnownNat n) => VectorT n Identity (m a) -> m (VectorT n Identity a)
+scheduleAndFinish = runVectorT . schedule'
 
+-- FIXME
+{-
 -- | Uses 'scheduleAndFinish' to execute all actions concurrently,
 --   then orders them again.
 --   Thus it behaves semantically like 'sequence',
 --   but leverages concurrency.
-sequenceScheduling :: (Monad m, MonadSchedule m) => NonEmpty (m a) -> m (NonEmpty a)
+sequenceScheduling :: (Monad m, MonadSchedule m) => VectorT n Identity (m a) -> m (VectorT n Identity a)
 sequenceScheduling
   =   zip [1..]
   >>> map strength
@@ -91,10 +96,11 @@ sequenceScheduling
   where
     strength :: Functor m => (a, m b) -> m (a, b)
     strength (a, mb) = (a, ) <$> mb
-
+-}
 -- | When there are no effects, return all values immediately
 instance MonadSchedule Identity where
   schedule as = ( , []) <$> sequence as
+  schedule' = fmap runIdentity
 
 {- |
 Fork all actions concurrently in separate threads and wait for the first one to complete.
@@ -123,6 +129,10 @@ instance MonadSchedule IO where
               as' <- drain var
               return $ a : as'
             Nothing -> return []
+  schedule' VectorT { getVectorT = ioas } = VectorT $ do
+    var <- newEmptyMVar
+    forM_ (runIdentity ioas) $ \action -> forkIO $ putMVar var =<< action
+    getVectorT $ replicateM $ takeMVar var
 
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
@@ -135,6 +145,11 @@ instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
     >>> fmap (fmap (fmap IdentityT))
     >>> IdentityT
 
+  schedule'
+    = fmap runIdentityT
+    >>> schedule'
+    >>> hoist IdentityT
+
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
 instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.WriterT w m) where
@@ -145,6 +160,11 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.Wri
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
+
+  schedule' = fmap LazyWriter.runWriterT
+    >>> schedule'
+    >>> hoist lift
+    >>> Data.Vector.Sized.Trans.mapM LazyWriter.writer
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
