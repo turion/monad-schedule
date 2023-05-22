@@ -44,7 +44,7 @@ import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
 import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
-import Data.Vector.Sized.Trans (mapM, VectorT (..))
+import Data.Vector.Sized.Trans (mapM, VectorT (..), uncons, runVectorT, replicateM, cons, singleton, VectorT' (..))
 import qualified Data.Vector.Sized.Trans.Some as Some
 import Data.Vector.Sized.Trans.Some (SomeVectorT)
 import GHC.TypeNats
@@ -176,6 +176,10 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.W
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
+  schedule' = fmap StrictWriter.runWriterT
+    >>> schedule'
+    >>> hoist lift
+    >>> Data.Vector.Sized.Trans.mapM StrictWriter.writer
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
@@ -187,6 +191,10 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (CPSWriter.Writ
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
+  schedule' = fmap CPSWriter.runWriterT
+    >>> schedule'
+    >>> hoist lift
+    >>> Data.Vector.Sized.Trans.mapM CPSWriter.writer
 
 -- | Broadcast the same environment to all actions.
 --   The continuations keep this initial environment.
@@ -195,6 +203,13 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
     -> fmap (`runReaderT` r) actions
     & schedule
     & fmap (second $ fmap lift)
+
+  schedule' actions
+    = VectorT $ ReaderT $ \r
+        -> fmap (`runReaderT` r) actions
+        & schedule'
+        & getVectorT
+        & fmap (hoist lift)
 
 -- | Combination of 'WriterT' and 'ReaderT'.
 --   Pass the same initial environment to all actions
@@ -212,6 +227,15 @@ instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) wher
       collectWritesAndWrap (finished, running) =
         let (as, logs) = NonEmpty.unzip finished
         in ((as, AccumT . const <$> running), fold logs)
+  schedule' actions = VectorT $ AccumT $ \w
+    -> fmap (`runAccumT` w) actions
+    & schedule'
+    & getVectorT
+    & fmap getFirstLog
+   where
+    getFirstLog :: VectorT' n m (a, w) -> (VectorT' n (AccumT w m) a, w)
+    getFirstLog VNil = (VNil, mempty)
+    getFirstLog (VCons (a, w) aws) = (VCons a $ Data.Vector.Sized.Trans.mapM (accum . const) $ hoist lift aws, w)
 
 -- | Schedule all actions according to @m@ and in case of exceptions
 --   throw the first exception of the immediately returning actions.
@@ -224,6 +248,11 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
     where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
       extrudeEither (ea, b) = (, b) <$> ea
+  schedule'
+    =   fmap runExceptT
+    >>> schedule'
+    >>> hoist lift
+    >>> Data.Vector.Sized.Trans.mapM except
 
 instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
   schedule
@@ -232,11 +261,18 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
     >>> exceptToMaybeT
     >>> fmap (second $ fmap exceptToMaybeT)
 
--- instance (Monad m, MonadSchedule m) => MonadSchedule (ContT r m) where
---   schedule actions = ContT $ \scheduler
---     -> fmap (runContT >>> _) actions
---     & schedule
---     & _
+  schedule'
+    =   fmap (maybeToExceptT ())
+    >>> schedule'
+    >>> hoist exceptToMaybeT
+
+instance (Monad m, MonadSchedule m) => MonadSchedule (ContT r m) where
+  schedule actions = ContT $ \scheduler
+    -> fmap (runContT >>> _) actions
+    & schedule
+    & _
+  schedule' actions = VectorT $ ContT $ \scheduler
+    -> _
 
 -- | Runs two values in a 'MonadSchedule' concurrently
 --   and returns the first one that yields a value
@@ -245,14 +281,11 @@ race
   :: (Monad m, MonadSchedule m)
   => m a -> m b
   -> m (Either (a, m b) (m a, b))
-race aM bM = recoverResult <$> schedule ((Left <$> aM) :| [Right <$> bM])
+race aM bM = fmap (recoverResult . second (fmap fst . uncons)) $ uncons $ schedule' (Identity (Left <$> aM) `Data.Vector.Sized.Trans.cons` Data.Vector.Sized.Trans.singleton (Identity $ Right <$> bM))
   where
-    recoverResult :: Monad m => (NonEmpty (Either a b), [m (Either a b)]) -> Either (a, m b) (m a, b)
-    recoverResult (Left a :| [], [bM']) = Left (a, fromRight e <$> bM')
-    recoverResult (Right b :| [], [aM']) = Right (fromLeft e <$> aM', b)
-    recoverResult (Left a :| [Right b], []) = Left (a, return b)
-    recoverResult (Right b :| [Left a], []) = Right (return a, b)
-    recoverResult _ = e
+    recoverResult :: Functor m => (Either a b, m (Either a b)) -> Either (a, m b) (m a, b)
+    recoverResult (Left a, mab) = Left (a, fromRight e <$> mab)
+    recoverResult (Right b, mab) = Right (fromLeft e <$> mab, b)
     e = error "race: Internal error"
 
 -- FIXME I should only need Selective
