@@ -26,7 +26,7 @@ library
       Control.Monad.Schedule.Trans
       Control.Monad.Schedule.Yield
   build-depends:
-      base >= 4.13.0 && <= 4.17
+      base >= 4.13.0 && <= 4.18
     , stm >= 2.5
     , transformers >= 0.5
     , free >= 5.1
