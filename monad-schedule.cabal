@@ -30,6 +30,7 @@ common deps
     , transformers  ^>=0.6
     , mmorph ^>= 1.2
     , vector-sized-transformer ^>= 0.1
+    , list-t
 
 library
   import:           deps

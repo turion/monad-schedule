@@ -12,6 +12,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 module Control.Monad.Schedule.Class where
 
 
@@ -49,6 +50,8 @@ import qualified Data.Vector.Sized.Trans.Some as Some
 import Data.Vector.Sized.Trans.Some (SomeVectorT)
 import GHC.TypeNats
 import Control.Monad.Morph
+import ListT (ListT)
+import ListT qualified
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -72,6 +75,8 @@ class Monad m => MonadSchedule m where
   --   and return the result of the first finishers,
   --   together with completions for the unfinished actions.
   schedule :: NonEmpty (m a) -> m (NonEmpty a, [m a])
+  schedule'' :: Vector (n + 1) (m a) -> m (forall i j . (i + j ~ n) (Vector (i + 1) a, Vector j (m a)))
+  schedule''' :: Vector (n + 1) (m a) -> m ((a, Vector n (m a)))
 
   schedule' :: KnownNat n => VectorT n Identity (m a) -> VectorT n m a
 
@@ -266,13 +271,33 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
     >>> schedule'
     >>> hoist exceptToMaybeT
 
+instance MonadSchedule m => MonadSchedule (ListT m) where
+  schedule'
+    =   fmap ListT.uncons
+    >>> schedule'
+    >>> _
+
+{-
 instance (Monad m, MonadSchedule m) => MonadSchedule (ContT r m) where
-  schedule actions = ContT $ \scheduler
-    -> fmap (runContT >>> _) actions
-    & schedule
+  -- schedule actions = ContT $ \scheduler
+  --   -> fmap (runContT >>> _) actions
+  --   & schedule
+  --   & _
+  schedule' actions = VectorT $ ContT $ \cont
+    -> fmap (runContT) actions
     & _
-  schedule' actions = VectorT $ ContT $ \scheduler
-    -> _
+-}
+newtype MyContT r m a = MyContT { getMyContT :: (a -> m r) -> m r }
+
+instance Functor (MyContT r m) where
+  fmap f MyContT {getMyContT} = MyContT $ \cont -> getMyContT $ cont . f
+
+instance Applicative (MyContT r m) where
+  pure a = MyContT $ \cont -> cont a
+  MyContT f <*> MyContT a = MyContT $ \cont -> f $ \f -> a $ \a -> cont $ f a
+
+instance Monad (MyContT r m) where
+  MyContT ma >>= f = MyContT $ \cont -> ma $ \a -> getMyContT (f a) $ \b -> cont b
 
 -- | Runs two values in a 'MonadSchedule' concurrently
 --   and returns the first one that yields a value
