@@ -14,8 +14,11 @@ description:        A monad @m@ is said to allow scheduling if you can pass a nu
                     which you can further run or schedule to completion as you like.
 category:           Concurrency
 
+extra-doc-files: CHANGELOG.md
 
-extra-source-files: CHANGELOG.md
+source-repository head
+  type:     git
+  location: https://github.com/turion/monad-schedule
 
 common deps
   build-depends:
