@@ -55,7 +55,7 @@ makeWorkerLink = do
 proxyForActions :: NonEmpty (OSThreadPool n a) -> Proxy n
 proxyForActions _ = Proxy
 
-instance (KnownNat n, 1 <= n) => MonadSchedule (OSThreadPool n) where
+instance (KnownNat n, (1 <=? n) ~ True) => MonadSchedule (OSThreadPool n) where
   schedule actions = OSThreadPool $ do
     let n = natVal $ proxyForActions actions
     workerLinks <- replicateM (fromInteger n) makeWorkerLink

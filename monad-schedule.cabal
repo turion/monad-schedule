@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               monad-schedule
-version:            0.1.2.0
+version:            0.1.2.1
 license:            MIT
 license-file:       LICENSE
 author:             Manuel Bärenz
@@ -17,7 +17,16 @@ category:           Concurrency
 
 extra-source-files: CHANGELOG.md
 
+common deps
+  build-depends:
+    , base >= 4.13.0 && <= 4.19
+    , stm >= 2.5
+    , transformers >= 0.5
+    , free >= 5.1
+    , time-domain >= 0.1
+
 library
+  import: deps
   exposed-modules:
       Control.Monad.Schedule.Class
       Control.Monad.Schedule.OSThreadPool
@@ -25,16 +34,11 @@ library
       Control.Monad.Schedule.Sequence
       Control.Monad.Schedule.Trans
       Control.Monad.Schedule.Yield
-  build-depends:
-      base >= 4.13.0 && <= 4.17
-    , stm >= 2.5
-    , transformers >= 0.5
-    , free >= 5.1
-    , time-domain >= 0.1
   hs-source-dirs:   src
   default-language: Haskell2010
 
 test-suite test
+  import: deps
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
@@ -42,9 +46,6 @@ test-suite test
     Yield
   hs-source-dirs: test
   build-depends:
-      base >= 4.11 && < 5
-    , transformers >= 0.5
-    , free >= 5.1
     , test-framework >= 0.8
     , test-framework-quickcheck2 >= 0.3
     , test-framework-hunit >= 0.3
