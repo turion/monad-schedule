@@ -35,6 +35,7 @@ import Control.Monad.Schedule.Class (scheduleAndFinish)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Control.Arrow
 import Control.Monad.Free (_Free)
+import Data.List (sort)
 
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
@@ -81,6 +82,23 @@ tests = testGroup "Trans"
           $ runMySchedule $ interpretScripts scripts
     in counterexample ("steps: " ++ show steps)
     $ conjoin $ map (Log >>> (`elem` steps)) $ NonEmpty.toList $ threadNames scripts
+  , testCase "Regression example from rhine"
+    $ assertRunsLike
+      (mapM_ wait <$> [[5, 5] :: [Integer], [3, 3, 3]])
+      $ Waited <$> differences
+        [ 3
+        , 5
+        , 6
+        , 9
+        , 10
+        ]
+  , testProperty "Always schedules chronologically" $
+    \(waits :: NonEmpty [Positive Integer]) ->
+    let individualWaits = fmap getPositive <$> waits
+        individualTimes = scanl1 (+) <$> individualWaits
+        allWaits = map Waited $ filter (> 0) $ differences $ sort $ concat individualTimes
+        program = mapM wait <$> individualWaits
+    in runMySchedule program === allWaits
   ]
 
 assertRunsEqual :: NonEmpty (MySchedule a1) -> NonEmpty (MySchedule a2) -> Assertion
@@ -107,6 +125,9 @@ myLog = lift . tell . pure . Log
 
 runMySchedule :: NonEmpty (MySchedule a) -> [Event]
 runMySchedule = execWriter . runScheduleT (tell . pure . Waited) . scheduleAndFinish
+
+differences :: [Integer] -> [Integer]
+differences times = uncurry (-) <$> zip times (0 : times)
 
 data Script = Script
   { prefix :: [Positive Integer]
