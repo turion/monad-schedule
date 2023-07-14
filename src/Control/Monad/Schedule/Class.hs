@@ -218,6 +218,28 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
 --     & schedule
 --     & _
 
+-- FIXME Can I get rid of m
+data Action m = Fork (NonEmpty (Action m)) | M (m (Action m)) | Stop
+
+runContTAction :: Applicative m => ContT (Action m) m a -> Action m
+runContTAction (ContT cont) = M $ cont $ const $ pure Stop
+
+runContTAndAction :: (MonadSchedule m, Monad m) => ContT (Action m) m a -> m ()
+runContTAndAction = runAction . runContTAction
+
+runAction :: (Monad m, MonadSchedule m) => Action m -> m ()
+runAction Stop = pure ()
+runAction (M action) = action >>= runAction
+runAction (Fork actions) = do
+  (_done, running) <- schedule $ runAction <$> actions
+  mapM_ scheduleAndFinish $ nonEmpty running
+
+instance (Monad m) => MonadSchedule (ContT (Action m) m) where
+  schedule actions = ContT $ \scheduler
+    -> fmap runContTAction actions
+    & Fork
+    & pure
+
 -- | Runs two values in a 'MonadSchedule' concurrently
 --   and returns the first one that yields a value
 --   and a continuation for the other value.
