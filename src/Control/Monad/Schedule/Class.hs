@@ -218,27 +218,41 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
 --     & schedule
 --     & _
 
--- FIXME Can I get rid of m
-data Action m = Fork (NonEmpty (Action m)) | M (m (Action m)) | Stop
+-- a = type of variables allowed
+-- b = return type
+-- need also some kind of "send"? this is actually stop
+data Action m a b where
+  Fork :: NonEmpty (Action m a a) -> Action m a (NonEmpty a, [Action m a a])
+  Atom :: m (Action m a a) -> Action m a a
+  Stop :: a -> Action m a a
 
-runContTAction :: Applicative m => ContT (Action m) m a -> Action m
-runContTAction (ContT cont) = M $ cont $ const $ pure Stop
+action :: Action m a b -> ContT (Action m a b) m b
+action am = ContT $ const $ pure am
 
-runContTAndAction :: (MonadSchedule m, Monad m) => ContT (Action m) m a -> m ()
+atom :: m a -> ContT (Action m a b) m b
+atom ma = ContT $ \c -> pure $ Atom $ ma >>= c
+
+runContTAction :: (Applicative m) => ContT (Action m a b) m b -> Action m a b
+runContTAction (ContT cont) = Atom $ cont $ pure . Stop
+
+runContTAndAction :: (MonadSchedule m, Monad m) => ContT (Action m a b) m a -> m a
 runContTAndAction = runAction . runContTAction
 
-runAction :: (Monad m, MonadSchedule m) => Action m -> m ()
-runAction Stop = pure ()
-runAction (M action) = action >>= runAction
+runAction :: (Monad m, MonadSchedule m) => Action m a b -> m b
+runAction (Stop a) = pure a
+runAction (Atom action) = action >>= runAction
 runAction (Fork actions) = do
-  (_done, running) <- schedule $ runAction <$> actions
-  mapM_ scheduleAndFinish $ nonEmpty running
+  (done, running) <- schedule $ runAction <$> actions
+  pure (done, Atom . fmap Stop <$> running)
 
-instance (Monad m) => MonadSchedule (ContT (Action m) m) where
-  schedule actions = ContT $ \scheduler
-    -> fmap runContTAction actions
-    & Fork
-    & pure
+scheduleA :: NonEmpty (ContT (Action m a b) m b) -> ContT (Action m a b) m (NonEmpty a, [ContT (Action m a b) m b])
+scheduleA = fmap runContTAction >>> (\actions cont -> _ >>= cont) >>> ContT
+-- scheduleA actions = ContT $ \c -> let forked = Fork _ in _
+
+instance (Monad m) => MonadSchedule (ContT (Action m a a) m) where
+  schedule actions = fmap runContTAction actions
+    & fork
+    & _
 
 -- | Runs two values in a 'MonadSchedule' concurrently
 --   and returns the first one that yields a value
