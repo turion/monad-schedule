@@ -28,6 +28,8 @@ common deps
     , stm           ^>=2.5
     , time-domain   ^>=0.1
     , transformers  >=0.5 && < 0.7
+    , operational   ^>=0.2
+    , mtl           ^>=2.3
 
 library
   import:           deps
@@ -36,6 +38,7 @@ library
     Control.Monad.Schedule.OSThreadPool
     Control.Monad.Schedule.RoundRobin
     Control.Monad.Schedule.Sequence
+    Control.Monad.Schedule.SometimesState
     Control.Monad.Schedule.Trans
     Control.Monad.Schedule.Yield
 
@@ -47,6 +50,7 @@ test-suite test
   type:             exitcode-stdio-1.0
   main-is:          Main.hs
   other-modules:
+    SometimesState
     Trans
     Yield
 

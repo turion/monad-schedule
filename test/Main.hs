@@ -24,6 +24,7 @@ import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
 
 -- monad-schedule (test)
+import qualified SometimesState
 import qualified Trans
 import qualified Yield
 
@@ -32,6 +33,7 @@ main = defaultMain tests
 
 tests :: [Test]
 tests =
-  [ Trans.tests
+  [ SometimesState.tests
+  , Trans.tests
   , Yield.tests
   ]
