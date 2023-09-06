@@ -1,7 +1,7 @@
-{-# LANGUAGE TypeApplications #-}
+
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE RecordWildCards #-}
+
+
 -- base
 import Control.Arrow
 import Control.Monad
