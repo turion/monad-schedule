@@ -6,7 +6,6 @@ that adds a syntactical "delay", or "waiting" side effect.
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 module Control.Monad.Schedule.Trans where
 
 -- base

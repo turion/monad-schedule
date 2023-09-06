@@ -3,14 +3,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
+
+
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
+
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+
 module Control.Monad.Schedule.Class where
 
 
@@ -199,7 +199,7 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
   schedule
     =   fmap runExceptT
     >>> schedule
-    >>> fmap ((sequenceA *** fmap ExceptT) >>> extrudeEither)
+    >>> fmap (sequenceA *** fmap ExceptT >>> extrudeEither)
     >>> ExceptT
     where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
