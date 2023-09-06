@@ -155,7 +155,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
         ([], []) -> error "ScheduleT.shiftListOnce: Internal error. Please report as a bug: https://github.com/turion/monad-schedule/issues/new"
 
       -- Repeatedly shift the list by the smallest available waiting duration
-      -- until one action returns as pure.
+      -- until some actions return as pure.
       -- Return its result, together with the remaining free actions.
       shiftList ::
         (TimeDifference diff, Ord diff, Monad m, MonadSchedule m) =>
