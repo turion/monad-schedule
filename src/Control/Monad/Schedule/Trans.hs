@@ -95,7 +95,7 @@ execScheduleT action = do
       return (a, diff : diffs)
 
 instance Ord diff => MonadSchedule (Wait diff) where
-  schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in ((, waits') . pure) <$> smallestWait
+  schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in (, waits') . pure <$> smallestWait
 
 isZero :: (Eq diff, TimeDifference diff) => diff -> Bool
 isZero diff = diff `difference` diff == diff
@@ -152,7 +152,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
         ([], Wait diff cont : waits) -> Right $ Wait diff (cont, shift diff <$> waits)
 
       -- Repeatedly shift the list by the smallest available waiting duration
-      -- until one action returns as pure.
+      -- until some actions return as pure.
       -- Return its result, together with the remaining free actions.
       shiftList
         :: (TimeDifference diff, Ord diff, Monad m, MonadSchedule m)
@@ -164,7 +164,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
       -- FIXME Don't I need to shift delayed as well?
       shiftList actions delayed = case shiftListOnce actions of
         -- Some actions returned. Wrap up the remaining ones.
-        Left (as, waits) -> return (as, delayed ++ ((FreeT . return . Free) <$> waits))
+        Left (as, waits) -> return (as, delayed ++ (FreeT . return . Free <$> waits))
         -- No action has returned.
         -- Wait the remaining time and start scheduling again.
         Right (Wait diff (cont, waits)) -> do

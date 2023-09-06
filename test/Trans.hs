@@ -7,8 +7,9 @@
 module Trans where
 
 -- base
--- base
+import Control.Arrow
 import Control.Monad (forever, void)
+import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 
@@ -16,12 +17,18 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Writer (Writer, tell, runWriter, execWriter)
 
+-- free
+import Control.Monad.Free (_Free)
+
 -- QuickCheck
 import Test.QuickCheck
 import qualified Test.QuickCheck as QuickCheck
 
 -- test-framework
 import Test.Framework
+
+-- test-framework-quickcheck2
+import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- test-framework-hunit
 import Test.Framework.Providers.HUnit
@@ -32,10 +39,6 @@ import Test.HUnit hiding (Test)
 -- monad-schedule
 import Control.Monad.Schedule.Trans
 import Control.Monad.Schedule.Class (scheduleAndFinish)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Control.Arrow
-import Control.Monad.Free (_Free)
-import Data.List (sort)
 
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
@@ -135,11 +138,6 @@ data Script = Script
   , threadName :: String
   }
   deriving Show
-
--- FIXME Why is this not in QuickCheck?
-instance Arbitrary a => Arbitrary (NonEmpty a) where
-  arbitrary = (NonEmpty.:|) <$> arbitrary <*> arbitrary
-
 
 genScript :: ThreadName -> Gen Script
 genScript threadName = do
