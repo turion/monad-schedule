@@ -1,7 +1,8 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 -- base
 import Control.Arrow
 import Control.Monad
@@ -32,6 +33,6 @@ main = defaultMain tests
 
 tests :: [Test]
 tests =
-  [ Trans.tests
-  , Yield.tests
-  ]
+    [ Trans.tests
+    , Yield.tests
+    ]
