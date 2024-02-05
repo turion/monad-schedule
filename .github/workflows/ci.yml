@@ -8,11 +8,25 @@ on:
 
 name: build
 jobs:
-  build:
+  generate-matrix:
+    name: "Generate matrix from cabal"
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     runs-on: ubuntu-latest
+    steps:
+      - name: Extract the tested GHC versions
+        id: set-matrix
+        uses: kleidukos/get-tested@v0.1.6.0
+        with:
+          cabal-file: monad-schedule.cabal
+          ubuntu: true
+          version: 0.1.6.0
+
+  build:
+    needs: generate-matrix
     strategy:
-      matrix:
-        ghc: ['8.8.4','8.10.7','9.0.2','9.2.5','9.4.5','9.6.2']
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+    runs-on: ubuntu-latest
     name: Haskell GHC ${{ matrix.ghc }} cabal
     steps:
       - uses: actions/checkout@v4
