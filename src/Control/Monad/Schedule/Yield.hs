@@ -30,7 +30,7 @@ runYield = runIdentity . runYieldT
   interpreting 'yield's as GHC concurrency yields.
 -}
 runYieldIO ::
-    (MonadIO m) =>
-    YieldT m a ->
-    m a
+  (MonadIO m) =>
+  YieldT m a ->
+  m a
 runYieldIO = runScheduleT $ const $ liftIO Concurrent.yield

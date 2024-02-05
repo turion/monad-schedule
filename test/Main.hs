@@ -33,6 +33,6 @@ main = defaultMain tests
 
 tests :: [Test]
 tests =
-    [ Trans.tests
-    , Yield.tests
-    ]
+  [ Trans.tests
+  , Yield.tests
+  ]
