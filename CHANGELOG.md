@@ -1,5 +1,9 @@
 # Revision history for monad-schedule
 
+## 0.1.2.2
+
+* Compatibility with GHC 9.8
+
 ## 0.1.2.0 -- 2022-06-26
 
 * Added test suite
