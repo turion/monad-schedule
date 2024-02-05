@@ -8,6 +8,29 @@ on:
 
 name: build
 jobs:
+  hlint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 'Set up HLint'
+      uses: haskell-actions/hlint-setup@v2
+      with:
+        version: '3.6.1'
+
+    - name: 'Run HLint'
+      uses: haskell-actions/hlint-run@v2
+      with:
+        fail-on: warning
+
+  fourmolu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: haskell-actions/run-fourmolu@v9
+        with:
+          version: "0.14.0.0"
+
   generate-matrix:
     name: "Generate matrix from cabal"
     outputs:
