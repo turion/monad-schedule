@@ -17,18 +17,20 @@ type YieldT = ScheduleT ()
 type Yield = YieldT Identity
 
 -- | Let another thread wake up.
-yield :: Monad m => YieldT m ()
+yield :: (Monad m) => YieldT m ()
 yield = wait ()
 
-runYieldT :: Monad m => YieldT m a -> m a
+runYieldT :: (Monad m) => YieldT m a -> m a
 runYieldT = runScheduleT $ const $ return ()
 
 runYield :: Yield a -> a
 runYield = runIdentity . runYieldT
 
--- | Run a 'YieldT' value in a 'MonadIO',
---   interpreting 'yield's as GHC concurrency yields.
-runYieldIO
-  :: MonadIO m
-  => YieldT m a -> m a
+{- | Run a 'YieldT' value in a 'MonadIO',
+  interpreting 'yield's as GHC concurrency yields.
+-}
+runYieldIO ::
+  (MonadIO m) =>
+  YieldT m a ->
+  m a
 runYieldIO = runScheduleT $ const $ liftIO Concurrent.yield

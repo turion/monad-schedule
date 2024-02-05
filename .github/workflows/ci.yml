@@ -1,11 +1,55 @@
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: '23 14 * * 2'
+
 name: build
 jobs:
-  build:
+  hlint:
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 'Set up HLint'
+      uses: haskell-actions/hlint-setup@v2
+      with:
+        version: '3.6.1'
+
+    - name: 'Run HLint'
+      uses: haskell-actions/hlint-run@v2
+      with:
+        fail-on: warning
+
+  fourmolu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: haskell-actions/run-fourmolu@v9
+        with:
+          version: "0.14.0.0"
+
+  generate-matrix:
+    name: "Generate matrix from cabal"
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract the tested GHC versions
+        id: set-matrix
+        uses: kleidukos/get-tested@v0.1.6.0
+        with:
+          cabal-file: monad-schedule.cabal
+          ubuntu: true
+          version: 0.1.6.0
+
+  build:
+    needs: generate-matrix
     strategy:
-      matrix:
-        ghc: ['8.8.4','8.10.7','9.0.2','9.2.5','9.4.5','9.6.2']
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+    runs-on: ubuntu-latest
     name: Haskell GHC ${{ matrix.ghc }} cabal
     steps:
       - uses: actions/checkout@v4
@@ -13,21 +57,48 @@ jobs:
         id: setup-haskell-build
         with:
           ghc-version: ${{ matrix.ghc }}
-      - name: Cache Cabal build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ steps.setup-haskell-build.outputs.cabal-store }}
-            dist-newstyle
-          key: ${{ runner.os }}-cabal-${{ matrix.ghc }}
-          restore-keys: |
-            ${{ runner.os }}-cabal-${{ matrix.ghc }}
-      - name: Cabal build dependencies
+
+      - name: Configure the build
         run: |
-          cabal build all  --enable-tests --only-dependencies
+          cabal configure --enable-tests --enable-benchmarks --disable-documentation
+          cabal build all --dry-run
+        # The last step generates dist-newstyle/cache/plan.json for the cache key.
+
+      - name: Restore cached dependencies
+        uses: actions/cache/restore@v4
+        id: cache
+        env:
+          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
+          restore-keys: ${{ env.key }}-
+
+
+      - name: Install dependencies
+        # If we had an exact cache hit, the dependencies will be up to date.
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cabal build all --enable-tests --only-dependencies
+
+      # Cache dependencies already here, so that we do not have to rebuild them should the subsequent steps fail.
+      - name: Save cached dependencies
+        uses: actions/cache/save@v4
+        # If we had an exact cache hit, trying to save the cache would error because of key clash.
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
       - name: Cabal build packages
         run: |
           cabal build all --enable-tests
       - name: Cabal test
         run: |
           cabal test all --enable-tests --test-show-details=Always
+
+  success:
+    needs: build
+    runs-on:
+      - ubuntu-latest
+    steps:
+      - run: echo "Success"
