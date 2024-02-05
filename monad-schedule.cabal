@@ -24,6 +24,7 @@ tested-with:
   GHC == 9.2.5
   GHC == 9.4.5
   GHC == 9.6.2
+  GHC == 9.8.1
 
 source-repository head
   type:     git
@@ -31,7 +32,7 @@ source-repository head
 
 common deps
   build-depends:
-    , base          >=4.13.0 && <4.19.0
+    , base          >=4.13.0 && <4.20.0
     , free          >=5.1 && < 5.3
     , stm           ^>=2.5
     , time-domain   ^>=0.1
