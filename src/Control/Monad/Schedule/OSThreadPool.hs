@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -11,19 +10,18 @@ module Control.Monad.Schedule.OSThreadPool where
 import Control.Concurrent
 import Control.Monad (forM, replicateM, void)
 import Control.Monad.IO.Class
+import Data.Either (partitionEithers)
 import Data.List.NonEmpty hiding (cycle, zip)
 import Data.Proxy
 import GHC.TypeLits
 import Prelude hiding (take)
 
 -- stm
+import Control.Concurrent.STM
 import Control.Concurrent.STM.TChan
 
 -- rhine
-
-import Control.Concurrent.STM
 import Control.Monad.Schedule.Class
-import Data.Either (partitionEithers)
 
 newtype OSThreadPool (n :: Nat) a = OSThreadPool {unOSThreadPool :: IO a}
   deriving (Functor, Applicative, Monad, MonadIO)

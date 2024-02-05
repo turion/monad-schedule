@@ -6,17 +6,27 @@ module Yield where
 
 -- base
 import Control.Monad (forever)
+import Data.Foldable (forM_)
 import Data.List.NonEmpty (NonEmpty, reverse)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.Maybe (fromJust, isJust, maybeToList)
 
 -- transformers
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Writer (Writer, execWriter, runWriter, tell)
+
+-- QuickCheck
+import Test.QuickCheck (NonEmptyList (NonEmpty), counterexample, (===), (==>))
 
 -- test-framework
 import Test.Framework
 
 -- test-framework-hunit
 import Test.Framework.Providers.HUnit
+
+-- test-framework-quickcheck2
+import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- HUnit
 import Test.HUnit hiding (Test)
@@ -25,12 +35,6 @@ import Test.HUnit hiding (Test)
 import Control.Monad.Schedule.Class (schedule, scheduleAndFinish)
 import Control.Monad.Schedule.Trans (runScheduleIO, runScheduleT)
 import Control.Monad.Schedule.Yield
-import Control.Monad.Trans.Reader
-import Data.Foldable (forM_)
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (fromJust, isJust, maybeToList)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (NonEmptyList (NonEmpty), counterexample, (===), (==>))
 
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [yield, yield]

@@ -3,14 +3,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Control.Monad.Schedule.Class where
 
@@ -25,12 +21,11 @@ import Data.Function
 import Data.Functor.Identity
 import Data.Kind (Type)
 import Data.List.NonEmpty hiding (length)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (fromJust)
 import Data.Void
 import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (map, zip)
-
-import qualified Data.List.NonEmpty as NonEmpty
 
 -- transformers
 import Control.Monad.Trans.Accum
@@ -210,7 +205,7 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
   schedule =
     fmap runExceptT
       >>> schedule
-      >>> fmap ((sequenceA *** fmap ExceptT) >>> extrudeEither)
+      >>> fmap (sequenceA *** fmap ExceptT >>> extrudeEither)
       >>> ExceptT
     where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
