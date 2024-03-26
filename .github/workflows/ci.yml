@@ -31,6 +31,14 @@ jobs:
         with:
           version: "0.14.0.0"
 
+  cabal-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: haskell/actions/setup@v2
+        id: setup-haskell-build
+      - run: cabal check
+
   generate-matrix:
     name: "Generate matrix from cabal"
     outputs:
