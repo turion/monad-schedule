@@ -7,6 +7,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Control.Monad.Schedule.Class where
 
@@ -38,6 +40,10 @@ import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
 import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
+import Data.Semialign (Semialign (..))
+import Data.Functor ((<&>))
+import Data.These (These(..), partitionEithersNE)
+import Data.Bifunctor (bimap)
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -260,3 +266,17 @@ async aSched bSched = do
     Right (aCont, b) -> do
       a <- aCont
       return (a, b)
+
+{- | Align the first finishing actions.
+
+An instance of 'MonadSchedule' automatically implies an instance of 'Semialign':
+Launch two actions of types @m a@ and @m b@. If @m a@ finishes first, tag it with 'This',
+if @m b@ finishes first, tag it with 'That', if both finish at the same time, tag them with 'These'.
+-}
+newtype AlignSchedule m a = AlignSchedule { getAlignSchedule :: m a }
+  deriving (Functor, Applicative, Monad)
+
+instance (MonadSchedule m, Functor m) => Semialign (AlignSchedule m) where
+  align ma mb = AlignSchedule
+    $ schedule [Left <$> getAlignSchedule ma, Right <$> getAlignSchedule mb]
+    <&> (fst >>> partitionEithersNE >>> bimap NonEmpty.head NonEmpty.head)
