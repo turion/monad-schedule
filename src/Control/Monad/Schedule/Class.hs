@@ -16,8 +16,9 @@ module Control.Monad.Schedule.Class where
 
 -- base
 import Control.Arrow
-import Control.Concurrent
-import Control.Monad (void)
+import Control.Concurrent hiding (yield)
+import qualified Control.Concurrent
+import Control.Monad (void, MonadPlus (mzero))
 import Control.Monad.IO.Class
 import Data.Either
 import Data.Foldable (fold, forM_)
@@ -60,11 +61,15 @@ A lawful instance is considered to satisfy these conditions:
     In other words, @sequence@ will result in the same set of values as @scheduleAndFinish@.
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
-class MonadSchedule m where
+class Monad m => MonadSchedule m where
   -- | Run the actions concurrently,
   --   and return the result of the first finishers,
   --   together with completions for the unfinished actions.
   schedule :: NonEmpty (m a) -> m (NonEmpty a, [m a])
+
+  -- | Cooperatively let the local thread yield to other threads.
+  yield :: m ()
+  yield = return ()
 
 -- | Keeps 'schedule'ing actions until all are finished.
 --   Returns the same set of values as 'sequence',
@@ -124,6 +129,8 @@ instance MonadSchedule IO where
               return $ a : as'
             Nothing -> return []
 
+  yield = Control.Concurrent.yield
+
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
 
@@ -134,6 +141,8 @@ instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
     >>> schedule
     >>> fmap (fmap (fmap IdentityT))
     >>> IdentityT
+
+  yield = lift yield
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
@@ -146,6 +155,8 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.Wri
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
 
+  yield = lift yield
+
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
 instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.WriterT w m) where
@@ -156,6 +167,8 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.W
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
+
+  yield = lift yield
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
@@ -168,6 +181,8 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (CPSWriter.Writ
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
 
+  yield = lift yield
+
 -- | Broadcast the same environment to all actions.
 --   The continuations keep this initial environment.
 instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
@@ -175,6 +190,8 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
     -> fmap (`runReaderT` r) actions
     & schedule
     & fmap (second $ fmap lift)
+
+  yield = lift yield
 
 -- | Combination of 'WriterT' and 'ReaderT'.
 --   Pass the same initial environment to all actions
@@ -193,6 +210,8 @@ instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) wher
         let (as, logs) = NonEmpty.unzip finished
         in ((as, AccumT . const <$> running), fold logs)
 
+  yield = lift yield
+
 -- | Schedule all actions according to @m@ and in case of exceptions
 --   throw the first exception of the immediately returning actions.
 instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
@@ -205,12 +224,16 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
       extrudeEither (ea, b) = (, b) <$> ea
 
+  yield = lift yield
+
 instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
   schedule
     =   fmap (maybeToExceptT ())
     >>> schedule
     >>> exceptToMaybeT
     >>> fmap (second $ fmap exceptToMaybeT)
+
+  yield = lift yield
 
 -- instance (Monad m, MonadSchedule m) => MonadSchedule (ContT r m) where
 --   schedule actions = ContT $ \scheduler

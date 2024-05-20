@@ -95,16 +95,20 @@ execScheduleT action = do
       (a, diffs) <- execScheduleT cont
       return (a, diff : diffs)
 
-instance Ord diff => MonadSchedule (Wait diff) where
-  schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in ((, waits') . pure) <$> smallestWait
+-- instance Ord diff => MonadSchedule (Wait diff) where
+--   schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in ((, waits') . pure) <$> smallestWait
 
 isZero :: (Eq diff, TimeDifference diff) => diff -> Bool
 isZero diff = diff `difference` diff == diff
 
+-- FIXME Should be moved to time-domain, or added to the TimeDifference class
+class TimeDifference diff => TimeDifferenceZero diff where
+  zero :: diff
+
 -- | Run each action one step until it is discovered which action(s) are pure, or yield next.
 --   If there is a pure action, it is returned,
 --   otherwise all actions are shifted to the time when the earliest action yields.
-instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSchedule (ScheduleT diff m) where
+instance (Ord diff, TimeDifferenceZero diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSchedule (ScheduleT diff m) where
   schedule actions = do
     (frees, delayed) <- lift $ schedule $ runFreeT <$> actions
     shiftList (sortBy compareFreeFWait frees) $ FreeT <$> delayed
@@ -156,7 +160,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
       -- until one action returns as pure.
       -- Return its result, together with the remaining free actions.
       shiftList
-        :: (TimeDifference diff, Ord diff, Monad m, MonadSchedule m)
+        :: (TimeDifferenceZero diff, Ord diff, Monad m, MonadSchedule m)
         => NonEmpty (FreeF (Wait diff) a (ScheduleT diff m a))
         -- ^ Actionable
         -> [ScheduleT diff m a]
@@ -173,3 +177,5 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
           let (zeroWaits, nonZeroWaits) = partition (isZero . getDiff) waits
               zeroWaitsUnwrapped = awaited <$> zeroWaits
           schedule (cont :| delayed ++ zeroWaitsUnwrapped ++ (FreeT . return . Free <$> nonZeroWaits))
+
+  yield = wait zero
