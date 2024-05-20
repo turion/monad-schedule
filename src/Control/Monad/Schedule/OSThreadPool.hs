@@ -19,9 +19,10 @@ import Prelude hiding (take)
 import Control.Concurrent.STM.TChan
 
 -- rhine
-import Control.Monad.Schedule.Class
+import Control.Monad.Schedule.Class hiding (Nat)
 import Control.Concurrent.STM
 import Data.Either (partitionEithers)
+import ListT (ListT(ListT))
 
 newtype OSThreadPool (n :: Nat) a = OSThreadPool { unOSThreadPool :: IO a }
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -79,3 +80,8 @@ instance (KnownNat n, 1 <= n) => MonadSchedule (OSThreadPool n) where
 
       pollPool :: TChan a -> IO (Either (TChan a) a)
       pollPool chan = maybe (Left chan) Right <$> atomically (tryReadTChan chan)
+
+  schedule' actions = ListT $ OSThreadPool $ do
+    let n = natVal $ proxyForActions actions
+    workerLinks <- replicateM (fromInteger n) makeWorkerLink
+    _

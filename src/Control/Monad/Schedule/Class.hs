@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE LambdaCase #-}
 module Control.Monad.Schedule.Class where
 
 
@@ -25,13 +26,13 @@ import Data.Foldable (fold, forM_)
 import Data.Function
 import Data.Functor.Identity
 import Data.Kind (Type)
-import Data.List.NonEmpty hiding (length)
+import Data.List.NonEmpty hiding (uncons, length)
 import Data.Maybe (fromJust)
 import Data.Void
 import Prelude hiding (map, zip)
 import Unsafe.Coerce (unsafeCoerce)
 
-import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.List.NonEmpty as NonEmpty hiding (uncons)
 
 -- transformers
 import Control.Monad.Trans.Accum
@@ -44,6 +45,25 @@ import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
 import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
+import ListT (ListT (ListT), fromFoldable, unfoldM, uncons, traverse)
+import Control.Monad.Morph (MFunctor(hoist))
+
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+data VectorT' (n :: Nat) m a where
+  VNil :: VectorT' Z m a
+  VCons :: a -> VectorT n m a -> VectorT' (S n) m a
+
+newtype VectorT (n :: Nat) m a = VectorT { getVectorT :: m (VectorT' n m a) }
+
+-- FIXME This should work with Selective as well
+fromVectorT :: Functor m => VectorT n m a -> ListT m a
+fromVectorT = ListT . fmap (\case
+    VNil -> Nothing
+    VCons a v -> Just (a, fromVectorT v)
+  ) . getVectorT
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -70,6 +90,17 @@ class Monad m => MonadSchedule m where
   -- | Cooperatively let the local thread yield to other threads.
   yield :: m ()
   yield = return ()
+
+  schedule' :: [m a] -> ListT m a
+  schedule' [] = mzero
+  schedule' (a : as) = ListT $ do
+    (a :| done, running) <- schedule $ a :| as
+    return $ Just (a, fromFoldable done <> toListT running)
+
+toListT :: Monad m => [m a] -> ListT m a
+toListT = unfoldM $ \case
+  [] -> return Nothing
+  (a : as) -> Just . (, as) <$> a
 
 -- | Keeps 'schedule'ing actions until all are finished.
 --   Returns the same set of values as 'sequence',
@@ -100,6 +131,7 @@ sequenceScheduling
 -- | When there are no effects, return all values immediately
 instance MonadSchedule Identity where
   schedule as = ( , []) <$> sequence as
+  schedule' = toListT
 
 {- |
 Fork all actions concurrently in separate threads and wait for the first one to complete.
@@ -131,6 +163,14 @@ instance MonadSchedule IO where
 
   yield = Control.Concurrent.yield
 
+  schedule' as = pushM $ do
+    var <- newEmptyMVar
+    forM_ as $ \action -> forkIO $ putMVar var =<< action
+    return $ toListT $ replicate (length as) $ takeMVar var
+
+pushM :: (Functor m, Monad m) => m (ListT m a) -> ListT m a
+pushM ma = ListT $ uncons =<< ma
+
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
 
@@ -144,6 +184,8 @@ instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
 
   yield = lift yield
 
+  schedule' = hoist IdentityT . schedule' . fmap runIdentityT
+
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
 instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.WriterT w m) where
@@ -156,6 +198,12 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.Wri
       assoc ((a, w), c) = ((a, c), w)
 
   yield = lift yield
+
+  schedule'
+    = fmap LazyWriter.runWriterT
+    >>> schedule'
+    >>> hoist lift
+    >>> ListT.traverse LazyWriter.writer
 
 -- | Write in the order of scheduling:
 --   The first actions to return write first.
@@ -193,6 +241,8 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
 
   yield = lift yield
 
+  schedule' actions = ListT $ ReaderT $ \r -> fmap (fmap (second $ hoist lift)) $ uncons $ schedule' $ (`runReaderT` r) <$> actions
+
 -- | Combination of 'WriterT' and 'ReaderT'.
 --   Pass the same initial environment to all actions
 --   and write to the log in the order of scheduling in @m@.
@@ -212,6 +262,9 @@ instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) wher
 
   yield = lift yield
 
+  -- FIXME But this doesn't pass back the latest environment
+  schedule' actions = ListT $ AccumT $ \w -> fmap (maybe (Nothing, mempty) (\((a, w), as) -> (Just (a, ListT.traverse (\(a, w) -> add w >> return a) $ hoist lift as), w))) $ uncons $ schedule' $ (`runAccumT` w) <$> actions
+
 -- | Schedule all actions according to @m@ and in case of exceptions
 --   throw the first exception of the immediately returning actions.
 instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
@@ -225,6 +278,8 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
       extrudeEither (ea, b) = (, b) <$> ea
 
   yield = lift yield
+
+  schedule' = fmap runExceptT >>> schedule' >>> hoist lift >>> ListT.traverse except
 
 instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
   schedule
@@ -248,13 +303,11 @@ race
   :: (Monad m, MonadSchedule m)
   => m a -> m b
   -> m (Either (a, m b) (m a, b))
-race aM bM = recoverResult <$> schedule ((Left <$> aM) :| [Right <$> bM])
+race aM bM = recoverResult <$> uncons (schedule' [Left <$> aM, Right <$> bM])
   where
-    recoverResult :: Monad m => (NonEmpty (Either a b), [m (Either a b)]) -> Either (a, m b) (m a, b)
-    recoverResult (Left a :| [], [bM']) = Left (a, fromRight e <$> bM')
-    recoverResult (Right b :| [], [aM']) = Right (fromLeft e <$> aM', b)
-    recoverResult (Left a :| [Right b], []) = Left (a, return b)
-    recoverResult (Right b :| [Left a], []) = Right (return a, b)
+    recoverResult :: Monad m => Maybe (Either a b, ListT m (Either a b)) -> Either (a, m b) (m a, b)
+    recoverResult (Just (Left a, rest)) = Left (a, fromRight e . fst . fromJust <$> uncons rest)
+    recoverResult (Just (Right b, rest)) = Right (fromLeft e . fst . fromJust <$> uncons rest, b)
     recoverResult _ = e
     e = error "race: Internal error"
 
