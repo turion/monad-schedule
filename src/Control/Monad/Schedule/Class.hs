@@ -95,6 +95,11 @@ and it is thus impossible to schedule them deterministically
 with most other actions.
 Using concurrency, they can still be scheduled with all other actions in 'IO',
 by running them in separate GHC threads.
+
+Caution: Using 'schedule' repeatedly on the returned continuations of a previous 'schedule' call
+will add a layer of indirection to the continuation every time,
+eventually slowing down performance and building up memory.
+For a monad that doesn't have this problem, see 'Control.Monad.Schedule.FreeAsync.FreeAsyncT'.
 -}
 instance MonadSchedule IO where
   schedule as = do

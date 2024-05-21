@@ -4,6 +4,7 @@
 import Test.Framework
 
 -- monad-schedule (test)
+import qualified FreeAsync
 import qualified Trans
 import qualified Yield
 
@@ -12,6 +13,7 @@ main = defaultMain tests
 
 tests :: [Test]
 tests =
-  [ Trans.tests
+  [ FreeAsync.tests
+  , Trans.tests
   , Yield.tests
   ]
