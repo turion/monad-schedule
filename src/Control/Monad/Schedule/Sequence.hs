@@ -7,7 +7,6 @@ module Control.Monad.Schedule.Sequence where
 import Control.Arrow ((>>>))
 import Control.Monad.IO.Class
 import Data.Functor.Identity
-import qualified Data.List.NonEmpty as NonEmpty
 
 -- transformers
 import Control.Monad.Trans.Class

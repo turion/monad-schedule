@@ -6,7 +6,6 @@ import Control.Monad.IO.Class
 import Data.Functor.Identity (Identity (runIdentity))
 
 -- monad-schedule
-import Control.Monad.Schedule.Class
 import Control.Monad.Schedule.Trans
 
 -- * 'YieldT'

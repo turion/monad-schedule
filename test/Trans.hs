@@ -7,21 +7,17 @@ module Trans where
 
 -- base
 import Control.Arrow
-import Control.Monad (forever, void)
+import Control.Monad (forever)
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 
 -- transformers
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Writer (Writer, execWriter, runWriter, tell)
-
--- free
-import Control.Monad.Free (_Free)
+import Control.Monad.Trans.Writer (Writer, execWriter, tell)
 
 -- QuickCheck
 import Test.QuickCheck
-import qualified Test.QuickCheck as QuickCheck
 
 -- test-framework
 import Test.Framework

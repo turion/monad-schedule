@@ -13,24 +13,17 @@ module Control.Monad.Schedule.Class where
 -- base
 import Control.Arrow
 import Control.Concurrent
-import Control.Monad (void)
-import Control.Monad.IO.Class
 import Data.Either
 import Data.Foldable (fold, forM_)
 import Data.Function
 import Data.Functor.Identity
-import Data.Kind (Type)
 import Data.List.NonEmpty hiding (length)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (fromJust)
-import Data.Void
-import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (map, zip)
 
 -- transformers
 import Control.Monad.Trans.Accum
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Identity
 import Control.Monad.Trans.Maybe
