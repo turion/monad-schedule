@@ -17,7 +17,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Writer (Writer, execWriter, runWriter, tell)
 
 -- QuickCheck
-import Test.QuickCheck (NonEmptyList (NonEmpty), counterexample, (===), (==>))
+import Test.QuickCheck (counterexample, (==>))
 
 -- test-framework
 import Test.Framework
@@ -33,7 +33,7 @@ import Test.HUnit hiding (Test)
 
 -- monad-schedule
 import Control.Monad.Schedule.Class (schedule, scheduleAndFinish)
-import Control.Monad.Schedule.Trans (runScheduleIO, runScheduleT)
+import Control.Monad.Schedule.Trans (runScheduleT)
 import Control.Monad.Schedule.Yield
 
 sampleActions :: NonEmpty (MySchedule ())

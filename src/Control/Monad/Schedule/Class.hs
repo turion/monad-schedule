@@ -13,24 +13,17 @@ module Control.Monad.Schedule.Class where
 -- base
 import Control.Arrow
 import Control.Concurrent
-import Control.Monad (void)
-import Control.Monad.IO.Class
 import Data.Either
 import Data.Foldable (fold, forM_)
 import Data.Function
 import Data.Functor.Identity
-import Data.Kind (Type)
 import Data.List.NonEmpty hiding (length)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (fromJust)
-import Data.Void
-import Unsafe.Coerce (unsafeCoerce)
 import Prelude hiding (map, zip)
 
 -- transformers
 import Control.Monad.Trans.Accum
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Cont
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Identity
 import Control.Monad.Trans.Maybe
@@ -49,10 +42,9 @@ The actions @[m a]@ (possibly empty) are the remaining, still running ones.
 Executing any of them is expected to be blocking,
 and awaits the return of the corresponding action.
 
-A lawful instance is considered to satisfy these conditions:
+A lawful instance is considered to preserve pure values.
+Applying 'schedule' to values like @'pure' a@ will eventually return exactly these values.
 
-  * The set of returned values is invariant under scheduling.
-    In other words, @sequence@ will result in the same set of values as @scheduleAndFinish@.
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
 class MonadSchedule m where
@@ -93,8 +85,7 @@ sequenceScheduling =
 instance MonadSchedule Identity where
   schedule as = (,[]) <$> sequence as
 
-{- |
-Fork all actions concurrently in separate threads and wait for the first one to complete.
+{- | Fork all actions concurrently in separate threads and wait for the first one to complete.
 
 Many monadic actions complete at nondeterministic times
 (such as event listeners),
@@ -102,6 +93,11 @@ and it is thus impossible to schedule them deterministically
 with most other actions.
 Using concurrency, they can still be scheduled with all other actions in 'IO',
 by running them in separate GHC threads.
+
+Caution: Using 'schedule' repeatedly on the returned continuations of a previous 'schedule' call
+will add a layer of indirection to the continuation every time,
+eventually slowing down performance and building up memory.
+For a monad that doesn't have this problem, see 'Control.Monad.Schedule.FreeAsync.FreeAsyncT'.
 -}
 instance MonadSchedule IO where
   schedule as = do
@@ -260,3 +256,14 @@ async aSched bSched = do
     Right (aCont, b) -> do
       a <- aCont
       return (a, b)
+
+{- | Run both actions concurrently and apply the first result to the second.
+
+Use as a concurrent replacement for '<*>' from 'Applicative'.
+-}
+apSchedule :: (MonadSchedule m, Monad m) => m (a -> b) -> m a -> m b
+apSchedule f a = uncurry id <$> async f a
+
+-- | Concurrent replacement for '*>' from 'Applicative' or '>>' from 'Monad'.
+scheduleWith :: (MonadSchedule m, Monad m) => m a -> m b -> m b
+scheduleWith a b = (id <$ a) `apSchedule` b

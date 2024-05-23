@@ -9,11 +9,7 @@ that adds a syntactical "delay", or "waiting" side effect.
 module Control.Monad.Schedule.Trans where
 
 -- base
-import Control.Arrow (Arrow (second))
-import Control.Category ((>>>))
 import Control.Concurrent
-import qualified Control.Concurrent as C
-import Control.Monad (join)
 import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (partition)
@@ -156,6 +152,7 @@ instance (Ord diff, TimeDifference diff, Monad m, MonadSchedule m) => MonadSched
       shiftListOnce actions = case partitionFreeF $ toList actions of
         (a : as, waits) -> Left (a :| as, waits)
         ([], Wait diff cont : waits) -> Right $ Wait diff (cont, shift diff <$> waits)
+        ([], []) -> error "ScheduleT.shiftListOnce: Internal error. Please report as a bug: https://github.com/turion/monad-schedule/issues/new"
 
       -- Repeatedly shift the list by the smallest available waiting duration
       -- until one action returns as pure.

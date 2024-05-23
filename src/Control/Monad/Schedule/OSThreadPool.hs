@@ -18,9 +18,8 @@ import Prelude hiding (take)
 
 -- stm
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TChan
 
--- rhine
+-- monad-schedule
 import Control.Monad.Schedule.Class
 
 newtype OSThreadPool (n :: Nat) a = OSThreadPool {unOSThreadPool :: IO a}
