@@ -253,3 +253,14 @@ async aSched bSched = do
     Right (aCont, b) -> do
       a <- aCont
       return (a, b)
+
+{- | Run both actions concurrently and apply the first result to the second.
+
+Use as a concurrent replacement for '<*>' from 'Applicative'.
+-}
+apSchedule :: (MonadSchedule m, Monad m) => m (a -> b) -> m a -> m b
+apSchedule f a = uncurry id <$> async f a
+
+-- | Concurrent replacement for '*>' from 'Applicative' or '>>' from 'Monad'.
+scheduleWith :: (MonadSchedule m, Monad m) => m a -> m b -> m b
+scheduleWith a b = (id <$ a) `apSchedule` b
