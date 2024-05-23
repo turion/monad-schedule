@@ -86,8 +86,7 @@ sequenceScheduling =
 instance MonadSchedule Identity where
   schedule as = (,[]) <$> sequence as
 
-{- |
-Fork all actions concurrently in separate threads and wait for the first one to complete.
+{- | Fork all actions concurrently in separate threads and wait for the first one to complete.
 
 Many monadic actions complete at nondeterministic times
 (such as event listeners),
