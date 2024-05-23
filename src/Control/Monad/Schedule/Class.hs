@@ -42,10 +42,9 @@ The actions @[m a]@ (possibly empty) are the remaining, still running ones.
 Executing any of them is expected to be blocking,
 and awaits the return of the corresponding action.
 
-A lawful instance is considered to satisfy these conditions:
+A lawful instance is considered to preserve pure values.
+Applying 'schedule' to values like @'pure' a@ will eventually return exactly these values.
 
-  * The set of returned values is invariant under scheduling.
-    In other words, @sequence@ will result in the same set of values as @scheduleAndFinish@.
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
 class MonadSchedule m where
