@@ -1,5 +1,11 @@
 # Revision history for monad-schedule
 
+## 0.2
+
+* Added FreeAsync
+* Dropped support below GHC 9.2
+* Documentation fixes
+
 ## 0.1.2.2
 
 * Compatibility with GHC 9.8
