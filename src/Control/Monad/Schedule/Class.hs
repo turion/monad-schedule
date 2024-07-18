@@ -18,8 +18,10 @@ import Data.Foldable (fold, forM_)
 import Data.Function
 import Data.Functor.Identity
 import Data.List.NonEmpty hiding (length)
-import qualified Data.List.NonEmpty as NonEmpty
 import Prelude hiding (map, zip)
+
+-- base-compat
+import Data.Functor.Compat (unzip)
 
 -- transformers
 import Control.Monad.Trans.Accum
@@ -191,7 +193,7 @@ instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) wher
         (NonEmpty (a, w), [m (a, w)]) ->
         ((NonEmpty a, [AccumT w m a]), w)
       collectWritesAndWrap (finished, running) =
-        let (as, logs) = NonEmpty.unzip finished
+        let (as, logs) = Data.Functor.Compat.unzip finished
          in ((as, AccumT . const <$> running), fold logs)
 
 {- | Schedule all actions according to @m@ and in case of exceptions
