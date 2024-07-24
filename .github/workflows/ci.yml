@@ -124,9 +124,9 @@ jobs:
         run: |
           nix fmt
           git diff --exit-code
-      - name: Build all packages
-        run: nix build --accept-flake-config
-      - name: Run tests
+      - name: Build all packages & test
+        run: nix build --accept-flake-config -L
+      - name: Create development environment and run tests in it
         run: nix develop --accept-flake-config -c cabal test all
 
   success:
