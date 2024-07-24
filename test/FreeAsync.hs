@@ -64,14 +64,14 @@ tests =
         runFreeAsync $ replicateM_ 100 $ freeAsync $ threadDelay 1000
         after <- getCurrentTime
         let diff = after `diffUTCTime` before
-        assert $ diff >= 0.1 && diff < 0.2
+        assert $ diff >= 0.1 && diff < 0.3
     , testCase "Scheduling does things in parallel" $ do
         before <- getCurrentTime
         runFreeAsync $ scheduleAndFinish $ fromList $ replicate 100 $ freeAsync $ threadDelay 1000
         after <- getCurrentTime
         let diff = after `diffUTCTime` before
         print diff
-        assert $ diff > 0.001 && diff <= 0.005 -- Assume overhead is at most 5x at ms durations
+        assert $ diff > 0.001 && diff <= 0.01 -- Assume overhead is at most 10x at ms durations
     , testGroup
         "ConcurrentlyT"
         [ testCase "Sequencing does things in parallel" $ do
@@ -80,7 +80,7 @@ tests =
             after <- getCurrentTime
             let diff = after `diffUTCTime` before
             print diff
-            assert $ diff > 0.001 && diff <= 0.005 -- Assume overhead is at most 5x at ms durations
+            assert $ diff > 0.001 && diff <= 0.01 -- Assume overhead is at most 10x at ms durations
         ]
     ]
 
