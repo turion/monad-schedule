@@ -53,6 +53,11 @@
               time-domain = doJailbreak hprev.time-domain;
             })
           ];
+
+          release = with prev.haskell.lib; prev.linkFarm "release" {
+            sdist = sdistTarball hps.default.monad-schedule;
+            docs = documentationTarball hps.default.monad-schedule;
+          };
         in
         {
           # The Haskell package set containing the packages defined in this repo
@@ -67,7 +72,7 @@
 
           monad-schedule-all = prev.symlinkJoin {
             name = "monad-schedule-all";
-            paths = map (hp: hp.monad-schedule) (attrValues hps);
+            paths = map (hp: hp.monad-schedule) (attrValues hps) ++ [ release ];
           };
         };
 
