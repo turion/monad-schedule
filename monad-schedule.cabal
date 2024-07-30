@@ -31,6 +31,7 @@ source-repository head
 common deps
   build-depends:
     , base          >=4.16.0 && <4.21.0
+    , base-compat   ^>=0.13
     , free          >=5.1 && < 5.3
     , stm           ^>=2.5
     , time-domain   ^>=0.1
@@ -76,6 +77,8 @@ test-suite test
     , time                        >=1.9
 
   default-language: Haskell2010
+
+  ghc-options: -threaded
 
 flag dev
   description: Enable warnings as errors. Active on ci.
