@@ -23,4 +23,4 @@ jobs:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: result/sdist/
           docsPath: result/docs/
-          publish: false
+          publish: true
