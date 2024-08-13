@@ -50,6 +50,8 @@ and this can often be done by using `AccumT`:
 The two threads are launched with the same initial state,
 return a modification in form of a `Monoid`,
 which is then appended to the global state instead of replacing it.
+For example, typical map-reduce algorithms can be performed that way.
+As another example, the monoid `Last` gives last-write-wins semantics.
 
 But caution: Some common `AccumT` use cases have the typical concurrency pitfalls.
 For example, if you use the internal state as a unique key resource, or a random generator seed,

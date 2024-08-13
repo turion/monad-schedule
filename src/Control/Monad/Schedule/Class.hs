@@ -182,7 +182,7 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
   Pass the same initial environment to all actions
   and write to the log in the order of scheduling in @m@.
 -}
-instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) where
+instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (AccumT w m) where
   schedule actions = AccumT $ \w ->
     fmap (`runAccumT` w) actions
       & schedule
@@ -199,7 +199,7 @@ instance (Monoid w, Monad m, MonadSchedule m) => MonadSchedule (AccumT w m) wher
 {- | Schedule all actions according to @m@ and in case of exceptions
   throw the first exception of the immediately returning actions.
 -}
-instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
+instance (Applicative m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
   schedule =
     fmap runExceptT
       >>> schedule
@@ -209,7 +209,7 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
       extrudeEither (ea, b) = (,b) <$> ea
 
-instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
+instance (Applicative m, MonadSchedule m) => MonadSchedule (MaybeT m) where
   schedule =
     fmap (maybeToExceptT ())
       >>> schedule
@@ -227,17 +227,17 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (MaybeT m) where
   and a continuation for the other value.
 -}
 race ::
-  (Monad m, MonadSchedule m) =>
+  (Applicative m, MonadSchedule m) =>
   m a ->
   m b ->
   m (Either (a, m b) (m a, b))
 race aM bM = recoverResult <$> schedule ((Left <$> aM) :| [Right <$> bM])
   where
-    recoverResult :: (Monad m) => (NonEmpty (Either a b), [m (Either a b)]) -> Either (a, m b) (m a, b)
+    recoverResult :: (Applicative m) => (NonEmpty (Either a b), [m (Either a b)]) -> Either (a, m b) (m a, b)
     recoverResult (Left a :| [], [bM']) = Left (a, fromRight e <$> bM')
     recoverResult (Right b :| [], [aM']) = Right (fromLeft e <$> aM', b)
-    recoverResult (Left a :| [Right b], []) = Left (a, return b)
-    recoverResult (Right b :| [Left a], []) = Right (return a, b)
+    recoverResult (Left a :| [Right b], []) = Left (a, pure b)
+    recoverResult (Right b :| [Left a], []) = Right (pure a, b)
     recoverResult _ = e
     e = error "race: Internal error"
 
