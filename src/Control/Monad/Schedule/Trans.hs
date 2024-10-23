@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {- |
 This module supplies a general purpose monad transformer
@@ -28,6 +29,8 @@ import Data.TimeDomain
 
 -- monad-schedule
 import Control.Monad.Schedule.Class
+import Data.Functor.Const (Const(..))
+import qualified Control.Monad.Schedule.Class as Wait
 
 -- TODO Implement Time via StateT
 
@@ -96,6 +99,7 @@ execScheduleT action = do
       return (a, diff : diffs)
 
 instance (Ord diff) => MonadSchedule (Wait diff) where
+  createContext = Wait (error "monad-schedule: Wait.createContext: Internal error. Please report this as a bug: https://github.com/turion/monad-schedule/issues/new") $ Const ()
   schedule waits = let (smallestWait :| waits') = N.sortBy compareWait waits in (,waits') . pure <$> smallestWait
 
 isZero :: (Eq diff, TimeDifference diff) => diff -> Bool

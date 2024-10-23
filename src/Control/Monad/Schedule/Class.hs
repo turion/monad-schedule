@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -7,6 +8,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+-- Only needed for Functor (SchedulingContext m)
+{-# LANGUAGE UndecidableInstances #-}
 
 module Control.Monad.Schedule.Class where
 
@@ -16,7 +20,9 @@ import Control.Concurrent
 import Data.Either
 import Data.Foldable (fold, forM_)
 import Data.Function
+import Data.Functor.Const
 import Data.Functor.Identity
+import Data.Kind (Type)
 import Data.List.NonEmpty hiding (length)
 import Prelude hiding (map, zip)
 
@@ -50,11 +56,25 @@ Applying 'schedule' to values like @'pure' a@ will eventually return exactly the
 'schedule' thus can be thought of as a concurrency-utilizing version of 'sequence'.
 -}
 class MonadSchedule m where
+  type SchedulingContext m :: Type -> Type
+  type SchedulingContext m = Const ()
+
   -- | Run the actions concurrently,
   --   and return the result of the first finishers,
   --   together with completions for the unfinished actions.
   schedule :: NonEmpty (m a) -> m (NonEmpty a, [m a])
+  default schedule :: (Monad m) => NonEmpty (m a) -> m (NonEmpty a, [m a])
+  schedule actions = createContext >>= flip scheduleWithContext actions
 
+  -- FIXME Check haddocks that either schedule or createContext, scheduleWithContext are required
+
+  createContext :: m (SchedulingContext m a)
+  default createContext :: (Applicative m, SchedulingContext m ~ Const ()) => m (SchedulingContext m a)
+  createContext = pure $ Const ()
+
+  scheduleWithContext :: SchedulingContext m a -> NonEmpty (m a) -> m (NonEmpty a, [m a])
+  default scheduleWithContext :: (SchedulingContext m ~ Const ()) => SchedulingContext m a -> NonEmpty (m a) -> m (NonEmpty a, [m a])
+  scheduleWithContext _ = schedule
 {- | Keeps 'schedule'ing actions until all are finished.
   Returns the same set of values as 'sequence',
   but utilises concurrency and may thus change the order of the values.
@@ -102,8 +122,11 @@ eventually slowing down performance and building up memory.
 For a monad that doesn't have this problem, see 'Control.Monad.Schedule.FreeAsync.FreeAsyncT'.
 -}
 instance MonadSchedule IO where
-  schedule as = do
-    var <- newEmptyMVar
+  type SchedulingContext IO = MVar
+
+  createContext = newEmptyMVar
+
+  scheduleWithContext var as = do
     forM_ as $ \action -> forkIO $ putMVar var =<< action
     a <- takeMVar var
     as' <- drain var
@@ -124,6 +147,16 @@ instance MonadSchedule IO where
 
 -- | Pass through the scheduling functionality of the underlying monad
 instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
+  type SchedulingContext (IdentityT m) = SchedulingContext m
+
+  createContext = IdentityT createContext
+
+  scheduleWithContext context =
+    fmap runIdentityT
+      >>> scheduleWithContext context
+      >>> fmap (fmap (fmap IdentityT))
+      >>> IdentityT
+
   schedule =
     fmap runIdentityT
       >>> schedule
@@ -133,7 +166,19 @@ instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
 {- | Write in the order of scheduling:
   The first actions to return write first.
 -}
-instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.WriterT w m) where
+instance (Monoid w, Functor m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (LazyWriter.WriterT w m) where
+  type SchedulingContext (LazyWriter.WriterT w m) = SchedulingContext m
+
+  createContext = LazyWriter.WriterT $ (,mempty) <$> createContext
+
+  scheduleWithContext context =
+    fmap LazyWriter.runWriterT
+      >>> scheduleWithContext ((,mempty) <$> context)
+      >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap LazyWriter.WriterT))
+      >>> LazyWriter.WriterT
+    where
+      assoc :: ((a, w), c) -> ((a, c), w)
+      assoc ((a, w), c) = ((a, c), w)
   schedule =
     fmap LazyWriter.runWriterT
       >>> schedule
@@ -146,7 +191,20 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (LazyWriter.Wri
 {- | Write in the order of scheduling:
   The first actions to return write first.
 -}
-instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.WriterT w m) where
+instance (Monoid w, Functor m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (StrictWriter.WriterT w m) where
+  type SchedulingContext (StrictWriter.WriterT w m) = SchedulingContext m
+
+  createContext = StrictWriter.WriterT $ (,mempty) <$> createContext
+
+  scheduleWithContext context =
+    fmap StrictWriter.runWriterT
+      >>> scheduleWithContext ((,mempty) <$> context)
+      >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap StrictWriter.WriterT))
+      >>> StrictWriter.WriterT
+    where
+      assoc :: ((a, w), c) -> ((a, c), w)
+      assoc ((a, w), c) = ((a, c), w)
+
   schedule =
     fmap StrictWriter.runWriterT
       >>> schedule
@@ -159,7 +217,20 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (StrictWriter.W
 {- | Write in the order of scheduling:
   The first actions to return write first.
 -}
-instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (CPSWriter.WriterT w m) where
+instance (Monoid w, Functor m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (CPSWriter.WriterT w m) where
+  type SchedulingContext (CPSWriter.WriterT w m) = SchedulingContext m
+
+  createContext = CPSWriter.writerT $ (,mempty) <$> createContext
+
+  scheduleWithContext context =
+    fmap CPSWriter.runWriterT
+      >>> scheduleWithContext ((,mempty) <$> context)
+      >>> fmap (first (fmap fst &&& (fmap snd >>> fold)) >>> assoc >>> first (second $ fmap CPSWriter.writerT))
+      >>> CPSWriter.writerT
+    where
+      assoc :: ((a, w), c) -> ((a, c), w)
+      assoc ((a, w), c) = ((a, c), w)
+
   schedule =
     fmap CPSWriter.runWriterT
       >>> schedule
@@ -168,6 +239,8 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (CPSWriter.Writ
     where
       assoc :: ((a, w), c) -> ((a, c), w)
       assoc ((a, w), c) = ((a, c), w)
+
+-- FIXME Relax Monad type class
 
 {- | Broadcast the same environment to all actions.
   The continuations keep this initial environment.
@@ -182,7 +255,12 @@ instance (Monad m, MonadSchedule m) => MonadSchedule (ReaderT r m) where
   Pass the same initial environment to all actions
   and write to the log in the order of scheduling in @m@.
 -}
-instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (AccumT w m) where
+instance (Monoid w, Functor m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (AccumT w m) where
+  type SchedulingContext (AccumT w m) = SchedulingContext m
+
+  -- FIXME It's also a bit weird I have to do this dance everywhere just because lift requires a monad
+  createContext = AccumT $ const $ (,mempty) <$> createContext
+
   schedule actions = AccumT $ \w ->
     fmap (`runAccumT` w) actions
       & schedule
@@ -196,10 +274,27 @@ instance (Monoid w, Functor m, MonadSchedule m) => MonadSchedule (AccumT w m) wh
         let (as, logs) = Data.Functor.Compat.unzip finished
          in ((as, AccumT . const <$> running), fold logs)
 
+  scheduleWithContext context actions = AccumT $ \w ->
+    fmap (`runAccumT` w) actions
+      & scheduleWithContext ((,w) <$> context) -- FIXME this is a bit iffy. mempty better?
+      & fmap collectWritesAndWrap
+    where
+      collectWritesAndWrap ::
+        (Monoid w) =>
+        (NonEmpty (a, w), [m (a, w)]) ->
+        ((NonEmpty a, [AccumT w m a]), w)
+      collectWritesAndWrap (finished, running) =
+        let (as, logs) = Data.Functor.Compat.unzip finished
+         in ((as, AccumT . const <$> running), fold logs)
+
 {- | Schedule all actions according to @m@ and in case of exceptions
   throw the first exception of the immediately returning actions.
 -}
-instance (Applicative m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
+instance (Applicative m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (ExceptT e m) where
+  type SchedulingContext (ExceptT e m) = SchedulingContext m
+
+  createContext = ExceptT $ Right <$> createContext
+
   schedule =
     fmap runExceptT
       >>> schedule
@@ -209,7 +304,27 @@ instance (Applicative m, MonadSchedule m) => MonadSchedule (ExceptT e m) where
       extrudeEither :: (Either e a, b) -> Either e (a, b)
       extrudeEither (ea, b) = (,b) <$> ea
 
-instance (Applicative m, MonadSchedule m) => MonadSchedule (MaybeT m) where
+  scheduleWithContext context =
+    fmap runExceptT
+      >>> scheduleWithContext (Right <$> context)
+      >>> fmap (sequenceA *** fmap ExceptT >>> extrudeEither)
+      >>> ExceptT
+    where
+      extrudeEither :: (Either e a, b) -> Either e (a, b)
+      extrudeEither (ea, b) = (,b) <$> ea
+
+instance (Applicative m, MonadSchedule m, Functor (SchedulingContext m)) => MonadSchedule (MaybeT m) where
+  type SchedulingContext (MaybeT m) = SchedulingContext m
+
+  createContext = MaybeT $ Just <$> createContext
+
+  scheduleWithContext context =
+    fmap (maybeToExceptT ())
+      >>> scheduleWithContext context
+      >>> exceptToMaybeT
+      >>> fmap (second $ fmap exceptToMaybeT)
+
+  -- FIXME this duplication is a bit annoying
   schedule =
     fmap (maybeToExceptT ())
       >>> schedule
@@ -221,6 +336,9 @@ instance (Applicative m, MonadSchedule m) => MonadSchedule (MaybeT m) where
 --     -> fmap (runContT >>> _) actions
 --     & schedule
 --     & _
+
+-- FIXME Try this instead
+-- instance (Monad m, Someclass r) => MonadSchedule (ContT r m) where
 
 {- | Runs two values in a 'MonadSchedule' concurrently
   and returns the first one that yields a value
