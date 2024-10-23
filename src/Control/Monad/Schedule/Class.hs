@@ -59,9 +59,6 @@ class MonadSchedule m where
   type SchedulingContext m :: Type -> Type
   type SchedulingContext m = Const ()
 
-  type SchedulingContinuation m :: Type -> Type
-  type SchedulingContinuation m = m -- FIXME want to transport them through all the transformers
-
   -- | Run the actions concurrently,
   --   and return the result of the first finishers,
   --   together with completions for the unfinished actions.
@@ -75,18 +72,9 @@ class MonadSchedule m where
   default createContext :: (Applicative m, SchedulingContext m ~ Const ()) => m (SchedulingContext m a)
   createContext = pure $ Const ()
 
-  awaitContinuation :: SchedulingContinuation m a -> m a
-  default awaitContinuation :: (SchedulingContinuation m ~ m) => SchedulingContinuation m a -> m a
-  awaitContinuation = id
-
   scheduleWithContext :: SchedulingContext m a -> NonEmpty (m a) -> m (NonEmpty a, [m a])
   default scheduleWithContext :: (SchedulingContext m ~ Const ()) => SchedulingContext m a -> NonEmpty (m a) -> m (NonEmpty a, [m a])
   scheduleWithContext _ = schedule
-
-  scheduleWithContext' :: SchedulingContext m a -> NonEmpty (m a) -> [SchedulingContinuation m a] -> m (NonEmpty a, [SchedulingContinuation m a])
-  default scheduleWithContext' :: (SchedulingContinuation m ~ m) => SchedulingContext m a -> NonEmpty (m a) -> [SchedulingContinuation m a] -> m (NonEmpty a, [SchedulingContinuation m a])
-  scheduleWithContext' context actions continuations = scheduleWithContext context $ actions `appendList` (awaitContinuation <$> continuations)
-
 {- | Keeps 'schedule'ing actions until all are finished.
   Returns the same set of values as 'sequence',
   but utilises concurrency and may thus change the order of the values.
@@ -136,13 +124,8 @@ For a monad that doesn't have this problem, see 'Control.Monad.Schedule.FreeAsyn
 instance MonadSchedule IO where
   type SchedulingContext IO = MVar
 
-  type SchedulingContinuation IO = MVar
-
   createContext = newEmptyMVar
 
-  awaitContinuation = takeMVar
-
-  -- FIXME should be removed?
   scheduleWithContext var as = do
     forM_ as $ \action -> forkIO $ putMVar var =<< action
     a <- takeMVar var
@@ -159,31 +142,6 @@ instance MonadSchedule IO where
             return $ a : as'
           Nothing -> return []
 
-  scheduleWithContext' var as conts = do
-    forM_ as $ \action -> forkIO $ putMVar var =<< action
-    aconts <- traverse drain' conts
-    let (conts', finishedConts) = partitionEithers aconts
-    (a, as') <- case finishedConts of
-      [] -> do
-        a <- takeMVar var
-        as' <- drain var
-        return (a, as')
-      (a : as') -> do
-        as'' <- drain var
-        return (a, as' ++ as'')
-    let remaining = replicate (length as - 1 - length as') var
-    return (a :| as', conts' ++ remaining)
-    where
-      drain :: MVar a -> IO [a]
-      drain var = do
-        aMaybe <- tryTakeMVar var
-        case aMaybe of
-          Just a -> do
-            as' <- drain var
-            return $ a : as'
-          Nothing -> return []
-      drain' :: MVar a -> IO (Either (MVar a) a)
-      drain' var = maybe (Left var) Right <$> tryTakeMVar var
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
 
