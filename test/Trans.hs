@@ -121,7 +121,7 @@ tests =
         ]
     , testGroup
         "ScheduleT IO with wait"
-        [ Util.testPrograms (runScheduleT $ \n -> liftIO $ threadDelay (fromIntegral $ n * 1000) >> putStr "Waited: " >> print n) [arithmeticSequenceM 300 10 (wait <=< (\n -> liftIO (print n >> return n))), arithmeticSequenceM 500 6 (wait <=< (\n -> liftIO (print n >> putStrLn "500er" >> return n)))]
+        [ Util.testPrograms (runScheduleT $ \n -> liftIO $ putStr "Waiting: " >> print n >> threadDelay (fromIntegral $ n * 1000) >> putStr "Waited: " >> print n) [arithmeticSequenceM 300 10 (wait <=< (\n -> liftIO (print n >> return n))), arithmeticSequenceM 500 6 (wait <=< (\n -> liftIO (print n >> return n)))]
         ]
     ]
 
