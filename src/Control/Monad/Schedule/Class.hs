@@ -18,7 +18,7 @@ module Control.Monad.Schedule.Class where
 import Control.Arrow
 import Control.Concurrent
 import Data.Either
-import Data.Foldable (fold, forM_)
+import Data.Foldable (fold, forM_, traverse_)
 import Data.Function
 import Data.Functor.Const
 import Data.Functor.Identity
@@ -39,6 +39,8 @@ import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Writer.CPS as CPSWriter
 import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
+import Control.Monad (liftM, ap)
+import Control.Monad.IO.Class (MonadIO (..))
 
 {- | 'Monad's in which actions can be scheduled concurrently.
 
@@ -145,6 +147,56 @@ instance MonadSchedule IO where
 -- TODO Needs dependency
 -- instance MonadSchedule STM where
 
+data FunnyIO a = Boring (IO a) | Funny (MVar a)
+
+instance Functor FunnyIO where
+  fmap = liftM
+instance Applicative FunnyIO where
+  pure = Boring . pure
+  (<*>) = ap
+
+instance Monad FunnyIO where
+  funny >>= f = Boring $ runFunnyIO funny >>= runFunnyIO . f
+
+instance MonadIO FunnyIO where
+  liftIO = Boring
+
+runFunnyIO :: FunnyIO a -> IO a
+runFunnyIO (Boring io) = io
+runFunnyIO (Funny var) = takeMVar var
+
+instance MonadSchedule FunnyIO where
+  type SchedulingContext FunnyIO = MVar
+
+  createContext = liftIO newEmptyMVar
+
+  scheduleWithContext var as = do
+    traverse_ (background var) as
+    a <- liftIO $ takeMVar var
+    as' <- liftIO $ drain var
+    let remaining = replicate (length as - 1 - length as') $ liftIO $ takeMVar var
+    return (a :| as', remaining)
+    where
+      peek :: FunnyIO a -> IO (Either (FunnyIO a) a)
+      peek (Boring io) = pure $ Left $ Boring io
+      peek (Funny var) = maybe (Left (Funny var)) Right <$> tryTakeMVar var
+
+      background :: MVar a -> FunnyIO a -> FunnyIO (FunnyIO a)
+      background var (Boring io) = do
+        liftIO $ forkIO $ putMVar var =<< io
+        return $ Funny var
+      background var funny@(Funny var') = if var == var'
+          then return funny
+          else background var $ liftIO $ takeMVar var'
+
+      drain :: MVar a -> IO [a]
+      drain var = do
+        aMaybe <- tryTakeMVar var
+        case aMaybe of
+          Just a -> do
+            as' <- drain var
+            return $ a : as'
+          Nothing -> return []
 -- | Pass through the scheduling functionality of the underlying monad
 instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
   type SchedulingContext (IdentityT m) = SchedulingContext m
