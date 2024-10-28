@@ -8,7 +8,7 @@ module Trans where
 
 -- base
 import Control.Arrow
-import Control.Monad (forever)
+import Control.Monad (forever, (<=<))
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -40,6 +40,7 @@ import Control.Monad.Schedule.Trans
 
 import Control.Monad.IO.Class
 import Util
+import Control.Concurrent (threadDelay)
 
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
@@ -120,7 +121,7 @@ tests =
         ]
     , testGroup
         "ScheduleT IO with wait"
-        [ Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequenceM 300 10 wait, arithmeticSequenceM 500 6 wait]
+        [ Util.testPrograms (runScheduleT $ \n -> liftIO $ threadDelay (fromIntegral $ n * 1000) >> putStr "Waited: " >> print n) [arithmeticSequenceM 300 10 (wait <=< (\n -> liftIO (print n >> return n))), arithmeticSequenceM 500 6 (wait <=< (\n -> liftIO (print n >> putStrLn "500er" >> return n)))]
         ]
     ]
 

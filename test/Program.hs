@@ -1,5 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
+module Program where
+
 -- base
 
 import Control.Concurrent (threadDelay)
