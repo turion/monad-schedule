@@ -15,6 +15,7 @@ import Data.Functor.Classes
 import Data.Functor.Identity
 import Data.List (partition)
 import Data.List.NonEmpty as N hiding (partition)
+import Data.Functor.Const (Const(..))
 import Data.Ord (comparing)
 
 -- transformers
@@ -29,8 +30,6 @@ import Data.TimeDomain
 
 -- monad-schedule
 import Control.Monad.Schedule.Class
-import Data.Functor.Const (Const(..))
-import qualified Control.Monad.Schedule.Class as Wait
 
 -- TODO Implement Time via StateT
 
