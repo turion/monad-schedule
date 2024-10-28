@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Trans where
 
@@ -35,8 +36,15 @@ import Test.HUnit hiding (Test)
 import Control.Monad.Schedule.Class (scheduleAndFinish)
 import Control.Monad.Schedule.Trans
 
+-- monad-schedule (test)
+import Util
+import Control.Monad.IO.Class
+
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
+
+testPrograms :: MonadIO m => NonEmpty (Program m)
+testPrograms = [arithmeticSequence 30 100, arithmeticSequence 50 60]
 
 tests =
   testGroup
@@ -104,7 +112,9 @@ tests =
               individualTimes = scanl1 (+) <$> individualWaits
               allWaits = map Waited $ filter (> 0) $ differences $ sort $ concat individualTimes
               program = mapM wait <$> individualWaits
-           in runMySchedule program === allWaits
+          in runMySchedule program === allWaits
+    , Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequence 30 100, arithmeticSequence 50 60]
+    , Util.test2Programs (runScheduleIO @_ @Integer) [arithmeticSequence 30 100, arithmeticSequence 50 60] -- FIXME I cannot reproduce the error, try again a new test in automaton
     ]
 
 assertRunsEqual :: NonEmpty (MySchedule a1) -> NonEmpty (MySchedule a2) -> Assertion
