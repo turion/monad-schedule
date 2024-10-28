@@ -37,13 +37,14 @@ import Control.Monad.Schedule.Class (scheduleAndFinish)
 import Control.Monad.Schedule.Trans
 
 -- monad-schedule (test)
-import Util
+
 import Control.Monad.IO.Class
+import Util
 
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
 
-testPrograms :: MonadIO m => NonEmpty (Program m)
+testPrograms :: (MonadIO m) => NonEmpty (Program m)
 testPrograms = [arithmeticSequence 30 100, arithmeticSequence 50 60]
 
 tests =
@@ -112,9 +113,15 @@ tests =
               individualTimes = scanl1 (+) <$> individualWaits
               allWaits = map Waited $ filter (> 0) $ differences $ sort $ concat individualTimes
               program = mapM wait <$> individualWaits
-          in runMySchedule program === allWaits
-    , Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequence 30 100, arithmeticSequence 50 60]
-    , Util.test2Programs (runScheduleIO @_ @Integer) [arithmeticSequence 30 100, arithmeticSequence 50 60] -- FIXME I cannot reproduce the error, try again a new test in automaton
+           in runMySchedule program === allWaits
+    , testGroup
+        "ScheduleT IO without wait"
+        [ Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequence 300 10, arithmeticSequence 500 6]
+        ]
+    , testGroup
+        "ScheduleT IO with wait"
+        [ Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequenceM 300 10 wait, arithmeticSequenceM 500 6 wait]
+        ]
     ]
 
 assertRunsEqual :: NonEmpty (MySchedule a1) -> NonEmpty (MySchedule a2) -> Assertion

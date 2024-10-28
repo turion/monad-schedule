@@ -32,17 +32,3 @@ scheduleProgramsWithContext programs = do
       case catMaybes maybePrograms ++ (Program <$> continuations) of
         [] -> return msgs
         (p : ps) -> fmap (msgs ++) $ go context $ p :| ps
-
-arithmeticSequence ::
-  (MonadIO m) =>
-  -- | Step size
-  Int ->
-  -- | Number of steps
-  Int ->
-  Program m
-arithmeticSequence stepSize nSteps = go 0
-  where
-    go n | n >= nSteps = Program $ return (n * stepSize, Nothing)
-    go n = Program $ do
-      liftIO $ threadDelay $ 1000 * stepSize
-      return ((n + 1) * stepSize, Just $ go $ n + 1)
