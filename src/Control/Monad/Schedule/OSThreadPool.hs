@@ -1,17 +1,16 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE InstanceSigs #-}
 
-module Control.Monad.Schedule.OSThreadPool
-  (OSThreadPool (..))
-  where
+module Control.Monad.Schedule.OSThreadPool (OSThreadPool (..))
+where
 
 -- base
 import Control.Concurrent
@@ -33,9 +32,6 @@ import Data.Functor.Compose (Compose (..))
 newtype OSThreadPool (n :: Nat) a = OSThreadPool {unOSThreadPool :: IO a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
-proxyForAction :: OSThreadPool n a -> Proxy n
-proxyForAction _ = Proxy
-
 data WorkerLink a = WorkerLink
   { jobTChan :: TChan (IO a)
   , resultTChan :: TChan a
@@ -45,8 +41,7 @@ data WorkerLink a = WorkerLink
 putJob :: WorkerLink a -> OSThreadPool n a -> IO ()
 putJob WorkerLink {..} OSThreadPool {..} =
   atomically $
-    writeTChan jobTChan $
-      unOSThreadPool
+    writeTChan jobTChan unOSThreadPool
 
 makeWorkerLink :: OSThreadPool n (WorkerLink a)
 makeWorkerLink = OSThreadPool $ do
@@ -65,7 +60,7 @@ type WorkerLinks = Compose [] WorkerLink
 instance (KnownNat n, (1 <=? n) ~ True) => MonadSchedule (OSThreadPool n) where
   type SchedulingContext (OSThreadPool n) = WorkerLinks -- FIXME Vec n
 
-  createContext :: forall n a . KnownNat n => OSThreadPool n (WorkerLinks a)
+  createContext :: forall n a. (KnownNat n) => OSThreadPool n (WorkerLinks a)
   createContext = do
     let n = natVal (Proxy @n)
     Compose <$> replicateM (fromInteger n) makeWorkerLink

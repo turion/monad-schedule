@@ -197,6 +197,7 @@ instance MonadSchedule FunnyIO where
             as' <- drain var
             return $ a : as'
           Nothing -> return []
+
 -- | Pass through the scheduling functionality of the underlying monad
 instance (Functor m, MonadSchedule m) => MonadSchedule (IdentityT m) where
   type SchedulingContext (IdentityT m) = SchedulingContext m
