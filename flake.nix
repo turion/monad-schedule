@@ -28,7 +28,7 @@
         "ghc94"
         "ghc96"
         "ghc98"
-        # "ghc910" # nixpkgs support isn't good enough yet, uncomment as soon as nixpkgs has moved
+        "ghc910"
       ];
 
       # The Haskell packages set, for every supported GHC version
