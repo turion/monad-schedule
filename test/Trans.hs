@@ -2,12 +2,13 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Trans where
 
 -- base
 import Control.Arrow
-import Control.Monad (forever)
+import Control.Monad (forever, (<=<))
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -35,8 +36,17 @@ import Test.HUnit hiding (Test)
 import Control.Monad.Schedule.Class (scheduleAndFinish)
 import Control.Monad.Schedule.Trans
 
+-- monad-schedule (test)
+
+import Control.Monad.IO.Class
+import Util
+import Control.Concurrent (threadDelay)
+
 sampleActions :: NonEmpty (MySchedule ())
 sampleActions = [wait 23, wait 42]
+
+testPrograms :: (MonadIO m) => NonEmpty (Program m)
+testPrograms = [arithmeticSequence 30 100, arithmeticSequence 50 60]
 
 tests =
   testGroup
@@ -105,6 +115,14 @@ tests =
               allWaits = map Waited $ filter (> 0) $ differences $ sort $ concat individualTimes
               program = mapM wait <$> individualWaits
            in runMySchedule program === allWaits
+    , testGroup
+        "ScheduleT IO without wait"
+        [ Util.testPrograms (runScheduleIO @_ @Integer) [arithmeticSequence 300 10, arithmeticSequence 500 6]
+        ]
+    , testGroup
+        "ScheduleT IO with wait"
+        [ Util.testPrograms (runScheduleT $ \n -> liftIO $ putStr "Waiting: " >> print n >> threadDelay (fromIntegral $ n * 1000) >> putStr "Waited: " >> print n) [arithmeticSequenceM 300 10 (wait <=< (\n -> liftIO (print n >> return n))), arithmeticSequenceM 500 6 (wait <=< (\n -> liftIO (print n >> return n)))]
+        ]
     ]
 
 assertRunsEqual :: NonEmpty (MySchedule a1) -> NonEmpty (MySchedule a2) -> Assertion

@@ -41,7 +41,7 @@ sampleActions = [yield, yield]
 
 tests =
   testGroup
-    "Trans"
+    "Yield"
     [ testCase "Only leftover time is waited" $
         assertRunsLike sampleActions [Yielded]
     , testCase "Scheduling two waits" $
