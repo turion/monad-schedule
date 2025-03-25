@@ -1,5 +1,10 @@
 # Revision history for monad-schedule
 
+## 0.2.0.2
+
+* Relax some type signatures
+* Relax some version bounds (thanks Andreas Ländle)
+
 ## 0.2.0.1
 
 * Compatibility with GHC 9.10
