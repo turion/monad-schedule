@@ -11,7 +11,7 @@ jobs:
   hlint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: 'Set up HLint'
       uses: haskell-actions/hlint-setup@v2
@@ -26,7 +26,7 @@ jobs:
   fourmolu:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: haskell-actions/run-fourmolu@v11
         with:
           version: "0.14.0.0"
@@ -34,7 +34,7 @@ jobs:
   cabal-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: haskell-actions/setup@v2
         id: setup-haskell-build
       - run: cabal check
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Haskell GHC ${{ matrix.ghc }} cabal
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: haskell-actions/setup@v2
         id: setup
         with:
@@ -113,7 +113,7 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
       - uses: cachix/cachix-action@v16
         with:
