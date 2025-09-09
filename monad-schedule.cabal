@@ -18,11 +18,11 @@ category:        Concurrency
 extra-doc-files: CHANGELOG.md
 
 tested-with:
-  GHC == 9.2.5
-  GHC == 9.4.5
-  GHC == 9.6.2
-  GHC == 9.8.1
-  GHC == 9.10.1
+  GHC == 9.2
+  GHC == 9.4
+  GHC == 9.6
+  GHC == 9.8
+  GHC == 9.10
 
 source-repository head
   type:     git
