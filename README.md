@@ -1,3 +1,5 @@
+# `monad-schedule` has moved to [`rhine`](https://github.com/turion/rhine/tree/master/monad-schedule)
+
 # `monad-schedule`
 
 ## What
