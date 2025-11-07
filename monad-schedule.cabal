@@ -18,11 +18,12 @@ category:        Concurrency
 extra-doc-files: CHANGELOG.md
 
 tested-with:
-  GHC == 9.2.5
-  GHC == 9.4.5
-  GHC == 9.6.2
-  GHC == 9.8.1
-  GHC == 9.10.1
+  GHC == 9.2
+  GHC == 9.4
+  GHC == 9.6
+  GHC == 9.8
+  GHC == 9.10
+  GHC == 9.12
 
 source-repository head
   type:     git
@@ -30,7 +31,7 @@ source-repository head
 
 common deps
   build-depends:
-    , base          >=4.16.0 && <4.21.0
+    , base          >=4.16.0 && <4.22
     , base-compat   >=0.13 && < 0.15
     , free          >=5.1 && < 5.3
     , stm           ^>=2.5

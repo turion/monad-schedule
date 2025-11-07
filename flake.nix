@@ -29,6 +29,7 @@
         "ghc96"
         "ghc98"
         "ghc910"
+        "ghc912"
       ];
 
       # The Haskell packages set, for every supported GHC version
